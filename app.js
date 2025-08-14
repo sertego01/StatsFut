@@ -270,81 +270,243 @@
 
   let config = { matchMinutes: 80, theme: 'dark', bg: null, primary: null };
 
-  // ---- Firebase (opcional) ----
+  // ---- Firebase / Cloud Sync ----
   const STORAGE_KEYS_CLOUD = {
     cloudEnabled: 'asistencia_cloud_enabled',
     firebaseConfig: 'asistencia_firebase_config'
   };
-  let cloud = { enabled: false, app: null, auth: null, db: null, user: null };
+  let cloud = {
+    enabled: false,
+    app: null,
+    auth: null,
+    db: null,
+    firebaseConfig: null
+  };
+
   let isApplyingCloudSnapshot = false;
 
-  function loadCloudConfig() {
-    try {
-      cloud.enabled = localStorage.getItem(STORAGE_KEYS_CLOUD.cloudEnabled) === '1';
-      const raw = localStorage.getItem(STORAGE_KEYS_CLOUD.firebaseConfig);
-      if (raw) cloud.firebaseConfig = JSON.parse(raw);
-    } catch {}
-  }
-
+  // Inicializar Firebase si está habilitado
   async function initFirebaseIfEnabled() {
-    if (!cloud.enabled || !window.firebase) return;
-    if (!cloud.firebaseConfig) return;
-    cloud.app = firebase.initializeApp(cloud.firebaseConfig);
-    cloud.auth = firebase.auth();
-    cloud.db = firebase.firestore();
-    // Auth anónima
-    if (!cloud.auth.currentUser) {
-      await cloud.auth.signInAnonymously().catch(() => {});
+    if (!cloud.enabled || !cloud.firebaseConfig) return;
+    
+    try {
+      // Importar Firebase dinámicamente
+      if (!window.firebase) {
+        const script = document.createElement('script');
+        script.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
+        document.head.appendChild(script);
+        
+        await new Promise((resolve, reject) => {
+          script.onload = resolve;
+          script.onerror = reject;
+        });
+        
+        const authScript = document.createElement('script');
+        authScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js';
+        document.head.appendChild(authScript);
+        
+        await new Promise((resolve, reject) => {
+          authScript.onload = resolve;
+          authScript.onerror = reject;
+        });
+      }
+
+      // Inicializar Firebase
+      if (!cloud.app) {
+        cloud.app = firebase.initializeApp(cloud.firebaseConfig);
+        cloud.db = firebase.firestore(cloud.app);
+        cloud.auth = firebase.auth(cloud.app);
+      }
+
+      // Autenticación anónima
+      if (!cloud.auth.currentUser) {
+        await cloud.auth.signInAnonymously();
+      }
+
+      // Iniciar sincronización
+      startCloudSync();
+      
+      console.log('Firebase inicializado correctamente');
+    } catch (error) {
+      console.error('Error inicializando Firebase:', error);
+      alert('Error al conectar con Firebase: ' + error.message);
     }
-    cloud.user = cloud.auth.currentUser;
   }
 
+  // Iniciar sincronización en tiempo real
   function startCloudSync() {
     if (!cloud.enabled || !cloud.db) return;
-    // Players
-    cloud.db.collection('players').onSnapshot((snap) => {
-      isApplyingCloudSnapshot = true;
-      players = snap.docs.map(d => d.data());
+
+    console.log('Iniciando sincronización en la nube...');
+
+    // Sincronizar jugadores
+    cloud.db.collection('players').onSnapshot((snapshot) => {
+      if (isApplyingCloudSnapshot) return;
+      
+      const changes = snapshot.docChanges();
+      changes.forEach((change) => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const playerData = change.doc.data();
+          const existingIndex = players.findIndex(p => p.id === playerData.id);
+          
+          if (existingIndex >= 0) {
+            // Actualizar jugador existente
+            players[existingIndex] = { ...players[existingIndex], ...playerData };
+          } else {
+            // Añadir nuevo jugador
+            players.push(playerData);
+          }
+        } else if (change.type === 'removed') {
+          const playerId = change.doc.id;
+          players = players.filter(p => p.id !== playerId);
+        }
+      });
+      
+      // Ordenar y guardar
       players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
       saveState();
+      
+      // Refrescar UI
       renderPlayersList();
       renderAttendanceList();
-      renderStats();
       renderMatchPlayerForm();
-      isApplyingCloudSnapshot = false;
+      renderMatchStats();
+      renderRecentMatchEntries();
     });
-    // Sessions
-    cloud.db.collection('sessions').onSnapshot((snap) => {
-      isApplyingCloudSnapshot = true;
-      sessions = snap.docs.map(d => d.data());
-      // Normaliza formato asistencia por si llega como array
-      sessions = sessions.map((ses) => {
-        const next = { ...ses };
-        const att = ses.attendance;
-        if (Array.isArray(att)) {
-          const obj = {}; att.forEach(pid => obj[pid] = 'A'); next.attendance = obj;
-        } else if (!att || typeof att !== 'object') {
-          next.attendance = {};
+
+    // Sincronizar sesiones
+    cloud.db.collection('sessions').onSnapshot((snapshot) => {
+      if (isApplyingCloudSnapshot) return;
+      
+      const changes = snapshot.docChanges();
+      changes.forEach((change) => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const sessionData = change.doc.data();
+          const existingIndex = sessions.findIndex(s => s.id === sessionData.id);
+          
+          if (existingIndex >= 0) {
+            sessions[existingIndex] = { ...sessions[existingIndex], ...sessionData };
+          } else {
+            sessions.push(sessionData);
+          }
+        } else if (change.type === 'removed') {
+          const sessionId = change.doc.id;
+          sessions = sessions.filter(s => s.id !== sessionId);
         }
-        return next;
       });
-      sessions.sort((a, b) => a.date.localeCompare(b.date));
+      
+      // Ordenar por fecha y guardar
+      sessions.sort((a, b) => new Date(b.date) - new Date(a.date));
       saveState();
-      renderAttendanceList();
+      
+      // Refrescar UI
       renderStats();
       renderRecentSessions();
-      isApplyingCloudSnapshot = false;
+      if (inputSessionDate.value) {
+        renderAttendanceList();
+      }
     });
-    // Match entries
-    cloud.db.collection('matchEntries').onSnapshot((snap) => {
-      isApplyingCloudSnapshot = true;
-      matches = snap.docs.map(d => d.data());
-      matches.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+    // Sincronizar entradas de partido
+    cloud.db.collection('matchEntries').onSnapshot((snapshot) => {
+      if (isApplyingCloudSnapshot) return;
+      
+      const changes = snapshot.docChanges();
+      changes.forEach((change) => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const matchData = change.doc.data();
+          const existingIndex = matches.findIndex(m => m.id === matchData.id);
+          
+          if (existingIndex >= 0) {
+            matches[existingIndex] = { ...matches[existingIndex], ...matchData };
+          } else {
+            matches.push(matchData);
+          }
+        } else if (change.type === 'removed') {
+          const matchId = change.doc.id;
+          matches = matches.filter(m => m.id !== matchId);
+        }
+      });
+      
+      // Guardar y refrescar UI
       saveState();
       renderMatchStats();
       renderRecentMatchEntries();
-      isApplyingCloudSnapshot = false;
     });
+
+    console.log('Sincronización en la nube iniciada');
+  }
+
+  // Sincronizar datos locales a la nube
+  async function syncDataToCloud() {
+    if (!cloud.enabled || !cloud.db) return;
+    
+    console.log('Sincronizando datos locales a la nube...');
+    
+    try {
+      // Marcar que estamos aplicando cambios de la nube
+      isApplyingCloudSnapshot = true;
+      
+      // Sincronizar jugadores
+      const playersBatch = cloud.db.batch();
+      players.forEach(player => {
+        const docRef = cloud.db.collection('players').doc(player.id);
+        playersBatch.set(docRef, player);
+      });
+      await playersBatch.commit();
+      
+      // Sincronizar sesiones
+      const sessionsBatch = cloud.db.batch();
+      sessions.forEach(session => {
+        const docRef = cloud.db.collection('sessions').doc(session.id);
+        sessionsBatch.set(docRef, session);
+      });
+      await sessionsBatch.commit();
+      
+      // Sincronizar entradas de partido
+      const matchesBatch = cloud.db.batch();
+      matches.forEach(match => {
+        const docRef = cloud.db.collection('matchEntries').doc(match.id);
+        matchesBatch.set(docRef, match);
+      });
+      await matchesBatch.commit();
+      
+      console.log('Datos sincronizados a la nube correctamente');
+    } catch (error) {
+      console.error('Error sincronizando a la nube:', error);
+      alert('Error al sincronizar datos: ' + error.message);
+    } finally {
+      isApplyingCloudSnapshot = false;
+    }
+  }
+
+  // Cargar configuración de la nube
+  function loadCloudConfig() {
+    try {
+      const enabled = localStorage.getItem(STORAGE_KEYS_CLOUD.cloudEnabled) === '1';
+      cloud.enabled = enabled;
+      
+      const firebaseConfig = localStorage.getItem(STORAGE_KEYS_CLOUD.firebaseConfig);
+      if (firebaseConfig) {
+        cloud.firebaseConfig = JSON.parse(firebaseConfig);
+      }
+    } catch (error) {
+      console.error('Error cargando configuración de la nube:', error);
+    }
+  }
+
+  // Guardar configuración de la nube
+  function saveCloudConfig() {
+    try {
+      localStorage.setItem(STORAGE_KEYS_CLOUD.cloudEnabled, cloud.enabled ? '1' : '0');
+      if (cloud.firebaseConfig) {
+        localStorage.setItem(STORAGE_KEYS_CLOUD.firebaseConfig, JSON.stringify(cloud.firebaseConfig));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS_CLOUD.firebaseConfig);
+      }
+    } catch (error) {
+      console.error('Error guardando configuración de la nube:', error);
+    }
   }
 
   // Partidos (form por jugador)
@@ -416,6 +578,14 @@
           p.name = newName.trim();
           players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
           saveState();
+          
+          // Sincronizar cambio con Firebase
+          if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+            cloud.db.collection('players').doc(p.id).set(p).catch((error) => {
+              console.error('Error sincronizando cambio de nombre a la nube:', error);
+            });
+          }
+          
           renderPlayersList();
           renderAttendanceList();
           renderStats();
@@ -436,7 +606,9 @@
           renderAttendanceList();
           renderStats();
           if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
-            cloud.db.collection('players').doc(p.id).delete().catch(() => {});
+            cloud.db.collection('players').doc(p.id).delete().catch((error) => {
+              console.error('Error eliminando jugador de la nube:', error);
+            });
           }
           renderMatchPlayerForm();
           renderMatchStats();
@@ -468,9 +640,11 @@
     players.push(player);
     players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     saveState();
-    if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
-      cloud.db.collection('players').doc(player.id).set(player).catch(() => {});
-    }
+          if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+        cloud.db.collection('players').doc(player.id).set(player).catch((error) => {
+          console.error('Error sincronizando jugador a la nube:', error);
+        });
+      }
     inputPlayerName.value = '';
     renderPlayersList();
     renderAttendanceList();
@@ -582,7 +756,9 @@
     };
     upsertSession(session);
     if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
-      cloud.db.collection('sessions').doc(session.id).set(session).catch(() => {});
+      cloud.db.collection('sessions').doc(session.id).set(session).catch((error) => {
+        console.error('Error sincronizando sesión a la nube:', error);
+      });
     }
     localStorage.setItem(STORAGE_KEYS.lastSelectedDate, date);
     renderStats();
@@ -708,8 +884,17 @@
       btnDelete.textContent = 'Eliminar';
       btnDelete.addEventListener('click', () => {
         if (confirm(`¿Eliminar la sesión del ${formatDateHuman(s.date)}?`)) {
-          sessions = sessions.filter(x => x.id !== s.id);
+          const sessionId = s.id;
+          sessions = sessions.filter(x => x.id !== sessionId);
           saveState();
+          
+          // Sincronizar eliminación con Firebase
+          if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+            cloud.db.collection('sessions').doc(sessionId).delete().catch((error) => {
+              console.error('Error eliminando sesión de la nube:', error);
+            });
+          }
+          
           renderStats();
           renderRecentSessions();
           // Si la fecha actual es ésta, refresca lista
@@ -763,8 +948,17 @@
       btnDelete.addEventListener('click', () => {
         const idx = matches.findIndex(m => m === ent);
         if (idx >= 0) {
+          const entryId = ent.id;
           matches.splice(idx, 1);
           saveState();
+          
+          // Sincronizar eliminación con Firebase
+          if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+            cloud.db.collection('matchEntries').doc(entryId).delete().catch((error) => {
+              console.error('Error eliminando entrada de partido de la nube:', error);
+            });
+          }
+          
           renderMatchStats();
           renderRecentMatchEntries();
         }
@@ -900,6 +1094,28 @@
   }
 
   if (btnOpenSettings && settingsModal && settingsForm && inputCfgMatchMinutes && btnSettingsClose) {
+    // Botón de sincronización manual
+    const btnSyncToCloud = document.getElementById('sync-to-cloud');
+    if (btnSyncToCloud) {
+      btnSyncToCloud.addEventListener('click', async () => {
+        if (!cloud.enabled || !cloud.db) {
+          alert('Activa la sincronización en la nube primero');
+          return;
+        }
+        
+        try {
+          btnSyncToCloud.textContent = 'Sincronizando...';
+          btnSyncToCloud.disabled = true;
+          await syncDataToCloud();
+          alert('Datos sincronizados correctamente a la nube');
+        } catch (error) {
+          alert('Error al sincronizar: ' + error.message);
+        } finally {
+          btnSyncToCloud.textContent = 'Sincronizar datos a la nube';
+          btnSyncToCloud.disabled = false;
+        }
+      });
+    }
     btnOpenSettings.addEventListener('click', () => {
       // Carga último estado desde localStorage antes de pintar
       loadCloudConfig();
@@ -946,10 +1162,10 @@
         }
       }
       saveConfig();
+      saveCloudConfig();
       applyThemeFromConfig();
       renderMatchStats();
       // Inicia Firebase si procede
-      loadCloudConfig();
       await initFirebaseIfEnabled();
       settingsModal.hidden = true;
     });
@@ -985,7 +1201,9 @@
       };
       addMatchEntry(entry);
       if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
-        cloud.db.collection('matchEntries').doc(entry.id).set(entry).catch(() => {});
+        cloud.db.collection('matchEntries').doc(entry.id).set(entry).catch((error) => {
+          console.error('Error sincronizando entrada de partido a la nube:', error);
+        });
       }
       renderMatchStats();
       renderRecentMatchEntries();
@@ -1019,6 +1237,7 @@
   function init() {
     loadState();
     loadConfig();
+    loadCloudConfig();
     // Fecha por defecto
     const lastDate = localStorage.getItem(STORAGE_KEYS.lastSelectedDate);
     inputSessionDate.value = lastDate || todayISO();
@@ -1027,6 +1246,11 @@
     // Mostrar el botón de borrar solo en Jugadores al inicio
     const activeSection = document.querySelector('.tab-section.is-active');
     if (appFooter) appFooter.style.display = activeSection && activeSection.id === 'tab-jugadores' ? 'flex' : 'none';
+    
+    // Inicializar Firebase si está habilitado
+    if (cloud.enabled) {
+      initFirebaseIfEnabled();
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
