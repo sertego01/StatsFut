@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asistencia a Entrenamientos</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Asistencia a Entrenamientos</h1>
+      <nav class="tabs-nav">
+        <div class="tabs-row cols-1">
+          <button class="tab-btn is-active" data-target="tab-jugadores">Jugadores</button>
+        </div>
+        <div class="tabs-row cols-2">
+          <button class="tab-btn" data-target="tab-entrenamientos">Entrenamientos</button>
+          <button class="tab-btn" data-target="tab-estadisticas">Estadísticas</button>
+        </div>
+        <div class="tabs-row cols-2">
+          <button class="tab-btn" data-target="tab-partidos">Partidos</button>
+          <button class="tab-btn" data-target="tab-estadisticas-partidos">Estadísticas</button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="app-main">
+      <section id="tab-jugadores" class="tab-section is-active">
+        <div class="card">
+          <h2>Añadir jugador</h2>
+          <form id="form-add-player" class="form-grid" autocomplete="off">
+            <label>
+              <span>Nombre</span>
+              <input id="player-name" type="text" placeholder="Nombre del jugador" required />
+            </label>
+            <button type="submit" class="btn primary">Añadir</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>Lista de jugadores</h2>
+          <div id="players-empty" class="empty-state is-hidden">No hay jugadores aún.</div>
+          <ul id="players-list" class="list"></ul>
+        </div>
+      </section>
+
+      <section id="tab-entrenamientos" class="tab-section">
+        <div class="card">
+          <h2>Registrar entrenamiento</h2>
+          <form id="form-session" class="form-grid">
+            <label>
+              <span>Fecha</span>
+              <input id="session-date" type="date" required />
+            </label>
+            <button type="submit" class="btn primary">Guardar entrenamiento</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Asistencia de jugadores</h3>
+          <div id="attendance-empty" class="empty-state">Añade jugadores para poder registrar asistencia.</div>
+          <ul id="attendance-list" class="list checklist"></ul>
+        </div>
+      </section>
+
+      <section id="tab-estadisticas" class="tab-section">
+        <div class="card" id="stats-card">
+          <h2>Estadísticas por jugador</h2>
+          <form id="form-stats-filter" class="form-grid compact">
+            <label>
+              <span>Desde</span>
+              <input id="stats-from" type="date" />
+            </label>
+            <label>
+              <span>Hasta</span>
+              <input id="stats-to" type="date" />
+            </label>
+            <button type="button" id="stats-clear" class="btn">Limpiar</button>
+          </form>
+          <div class="table-wrapper">
+            <table class="table" id="stats-table">
+              <thead>
+                <tr>
+                  <th>Jugador</th>
+                  <th>Total</th>
+                  <th>A</th>
+                  <th>F</th>
+                  <th>FJ</th>
+                  <th>T</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div id="stats-empty" class="empty-state is-hidden">No hay sesiones registradas.</div>
+          </div>
+          <div id="stats-detail" class="card" style="margin-top:12px;">
+            <h3>Detalle de sesiones</h3>
+            <div id="stats-detail-empty" class="empty-state">Haz clic en un jugador para ver sus sesiones.</div>
+            <ul id="stats-detail-list" class="list"></ul>
+          </div>
+        </div>
+
+        <div class="card" id="recent-sessions-card">
+          <h3>Sesiones</h3>
+          <ul id="recent-sessions" class="list"></ul>
+        </div>
+      </section>
+
+      <section id="tab-partidos" class="tab-section">
+        <div class="card">
+          <h2>Registrar datos de partido</h2>
+          <form id="form-match-player" class="form-grid">
+            <label>
+              <span>Jugador</span>
+              <select id="match-player" required></select>
+            </label>
+            <label>
+              <span>Goles</span>
+              <input id="match-goals" type="number" min="0" step="1" placeholder="0" />
+            </label>
+            <label>
+              <span>Asistencias</span>
+              <input id="match-assists" type="number" min="0" step="1" placeholder="0"/>
+            </label>
+            <label>
+              <span>Tarjetas amarillas</span>
+              <input id="match-yellows" type="number" min="0" step="1" placeholder="0"/>
+            </label>
+            <label>
+              <span>Tarjetas rojas</span>
+              <input id="match-reds" type="number" min="0" step="1" placeholder="0"/>
+            </label>
+            <label>
+              <span>Minutos</span>
+              <input id="match-minutes" type="number" min="0" step="1" placeholder="0 - 80"/>
+            </label>
+            <button type="submit" class="btn primary">Añadir registro</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Registros recientes</h3>
+          <ul id="recent-match-entries" class="list"></ul>
+        </div>
+      </section>
+
+      <section id="tab-estadisticas-partidos" class="tab-section">
+        <div class="card">
+          <h2>Estadísticas de partidos</h2>
+          <div class="table-wrapper">
+            <table class="table" id="mstats-table">
+              <thead>
+                <tr>
+                  <th data-key="player">Jugador</th>
+                  <th data-key="goals">G</th>
+                  <th data-key="assists">A</th>
+                  <th data-key="yellows">🟨</th>
+                  <th data-key="reds">🟥</th>
+                  <th data-key="minutes">Min</th>
+                  <th data-key="percent">%</th>
+                  <th data-key="games">PJ</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div id="mstats-empty" class="empty-state is-hidden">No hay registros de partido.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="settings-modal" class="modal" hidden>
+      <div class="modal-content">
+        <h3>Configuración</h3>
+        <form id="settings-form" class="form-grid compact">
+          <label>
+            <span>Sincronización en la nube</span>
+            <select id="cfg-cloud-enabled">
+              <option value="0">Desactivada</option>
+              <option value="1">Activada</option>
+            </select>
+          </label>
+          <label>
+            <span>Firebase config (JSON)</span>
+            <textarea id="cfg-firebase-json" rows="4" placeholder='{"apiKey":"...","authDomain":"...","projectId":"..."}'></textarea>
+          </label>
+          <label>
+            <span>Minutos por partido</span>
+            <input id="cfg-match-minutes" type="number" min="1" step="1" value="80" />
+          </label>
+          <label>
+            <span>Tema</span>
+            <select id="cfg-theme">
+              <option value="dark">Oscuro</option>
+              <option value="light">Claro</option>
+              <option value="club">Club</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </label>
+          <label>
+            <span>Color de fondo</span>
+            <input id="cfg-bg-color" type="color" />
+          </label>
+          <label>
+            <span>Color de resalte</span>
+            <input id="cfg-primary-color" type="color" />
+          </label>
+          <button type="button" id="settings-reset-colors" class="btn">Restablecer colores</button>
+          <button type="submit" class="btn primary">Guardar</button>
+          <button type="button" id="settings-close" class="btn">Cerrar</button>
+        </form>
+      </div>
+    </div>
+
+    <footer class="app-footer">
+      <button id="open-settings" class="btn">Configuración</button>
+      <button id="reset-data" class="btn danger">Borrar todo</button>
+    </footer>
+
+    <!-- Firebase (compat) for optional cloud sync -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
+    <script src="app.js" defer></script>
+  </body>
+  </html>
+
+
