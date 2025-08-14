@@ -181,11 +181,19 @@
             </select>
             <small style="color: #666; font-size: 0.9em;">La sincronización se activa automáticamente para nuevos usuarios</small>
           </label>
+          <div id="cloud-status" style="background: #e8f5e8; border: 1px solid #4caf50; border-radius: 4px; padding: 8px; margin: 8px 0; display: none;">
+            <strong>✅ Sincronización activa</strong><br>
+            <small>Los datos se sincronizan automáticamente con la nube</small>
+          </div>
           <label>
             <span>Firebase config (JSON)</span>
             <textarea id="cfg-firebase-json" rows="4" placeholder='{"apiKey":"...","authDomain":"...","projectId":"..."}'></textarea>
             <small style="color: #666; font-size: 0.9em;">Deja vacío para usar la configuración por defecto</small>
           </label>
+          <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 8px; margin: 8px 0;">
+            <strong>ℹ️ Configuración automática</strong><br>
+            <small>Si no introduces configuración personalizada, la app usará automáticamente la configuración de Firebase preestablecida.</small>
+          </div>
           <button type="button" id="sync-to-cloud" class="btn">Sincronizar datos a la nube</button>
           <label>
             <span>Minutos por partido</span>

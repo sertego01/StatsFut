@@ -1134,14 +1134,24 @@
       });
     }
     btnOpenSettings.addEventListener('click', () => {
-      // Carga último estado desde localStorage antes de pintar
-      loadCloudConfig();
+      // Mostrar estado actual de la configuración
       inputCfgMatchMinutes.value = String(config.matchMinutes);
       if (selectCfgTheme) selectCfgTheme.value = config.theme || 'dark';
       if (inputCfgBg) inputCfgBg.value = config.bg || '#0f1220';
       if (inputCfgPrimary) inputCfgPrimary.value = config.primary || '#6ee7b7';
       if (selectCfgCloudEnabled) selectCfgCloudEnabled.value = cloud.enabled ? '1' : '0';
-      if (textareaCfgFirebase) textareaCfgFirebase.value = cloud.firebaseConfig ? JSON.stringify(cloud.firebaseConfig) : '';
+      if (textareaCfgFirebase) {
+        // Si hay configuración personalizada, mostrarla; si no, dejar vacío (usará la por defecto)
+        const customConfig = localStorage.getItem(STORAGE_KEYS_CLOUD.firebaseConfig);
+        textareaCfgFirebase.value = customConfig || '';
+      }
+      
+      // Mostrar/ocultar mensaje de estado de la nube
+      const cloudStatus = document.getElementById('cloud-status');
+      if (cloudStatus) {
+        cloudStatus.style.display = cloud.enabled ? 'block' : 'none';
+      }
+      
       settingsModal.hidden = false;
     });
     btnSettingsClose.addEventListener('click', () => {
