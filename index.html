@@ -179,10 +179,12 @@
               <option value="0">Desactivada</option>
               <option value="1">Activada</option>
             </select>
+            <small style="color: #666; font-size: 0.9em;">La sincronización se activa automáticamente para nuevos usuarios</small>
           </label>
           <label>
             <span>Firebase config (JSON)</span>
             <textarea id="cfg-firebase-json" rows="4" placeholder='{"apiKey":"...","authDomain":"...","projectId":"..."}'></textarea>
+            <small style="color: #666; font-size: 0.9em;">Deja vacío para usar la configuración por defecto</small>
           </label>
           <button type="button" id="sync-to-cloud" class="btn">Sincronizar datos a la nube</button>
           <label>

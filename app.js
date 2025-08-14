@@ -283,6 +283,17 @@
     firebaseConfig: null
   };
 
+  // Configuración de Firebase por defecto (para nuevos usuarios)
+  const DEFAULT_FIREBASE_CONFIG = {
+    "apiKey": "AIzaSyCiKwHtQ_TUMe5mCv5WVsA64ELoloSr8Tk",
+    "authDomain": "futstats-b68d4.firebaseapp.com",
+    "projectId": "futstats-b68d4",
+    "storageBucket": "futstats-b68d4.firebasestorage.app",
+    "messagingSenderId": "678718806192",
+    "appId": "1:678718806192:web:2a8c76736e2eccf4e9c375",
+    "measurementId": "G-1RS15E65BY"
+  };
+
   let isApplyingCloudSnapshot = false;
 
   // Inicializar Firebase si está habilitado
@@ -489,9 +500,15 @@
       const firebaseConfig = localStorage.getItem(STORAGE_KEYS_CLOUD.firebaseConfig);
       if (firebaseConfig) {
         cloud.firebaseConfig = JSON.parse(firebaseConfig);
+      } else {
+        // Si no hay configuración guardada, usar la por defecto
+        cloud.firebaseConfig = DEFAULT_FIREBASE_CONFIG;
+        console.log('Usando configuración de Firebase por defecto');
       }
     } catch (error) {
       console.error('Error cargando configuración de la nube:', error);
+      // En caso de error, usar configuración por defecto
+      cloud.firebaseConfig = DEFAULT_FIREBASE_CONFIG;
     }
   }
 
@@ -1153,7 +1170,8 @@
             cloud.firebaseConfig = cfg;
             try { localStorage.setItem(STORAGE_KEYS_CLOUD.firebaseConfig, JSON.stringify(cfg)); } catch {}
           } else {
-            cloud.firebaseConfig = undefined;
+            // Si está vacío, usar configuración por defecto
+            cloud.firebaseConfig = DEFAULT_FIREBASE_CONFIG;
             try { localStorage.removeItem(STORAGE_KEYS_CLOUD.firebaseConfig); } catch {}
           }
         } catch (err) {
@@ -1238,13 +1256,22 @@
     loadState();
     loadConfig();
     loadCloudConfig();
+    
+    // Para nuevos usuarios, activar automáticamente la sincronización
+    const isFirstTime = !localStorage.getItem(STORAGE_KEYS_CLOUD.cloudEnabled);
+    if (isFirstTime) {
+      cloud.enabled = true;
+      localStorage.setItem(STORAGE_KEYS_CLOUD.cloudEnabled, '1');
+      console.log('Primera vez: activando sincronización automáticamente');
+    }
+    
     // Fecha por defecto
     const lastDate = localStorage.getItem(STORAGE_KEYS.lastSelectedDate);
     inputSessionDate.value = lastDate || todayISO();
     renderAll();
     applyThemeFromConfig();
     // Mostrar el botón de borrar solo en Jugadores al inicio
-    const activeSection = document.querySelector('.tab-section.is-active');
+    const activeSection = document.querySelector('.tab-section.is_active');
     if (appFooter) appFooter.style.display = activeSection && activeSection.id === 'tab-jugadores' ? 'flex' : 'none';
     
     // Inicializar Firebase si está habilitado
