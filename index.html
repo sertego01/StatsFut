@@ -8,7 +8,9 @@
   </head>
   <body>
     <header class="app-header">
-      <h1>Teja y Fran</h1>
+      <div class="auth-actions" style="display:flex; justify-content:center; margin-bottom:8px; gap:8px;">
+        <button id="open-login" class="btn">Iniciar sesión</button>
+      </div>
       <nav class="tabs-nav">
         <div class="tabs-row cols-1">
           <button class="tab-btn is-active" data-target="tab-jugadores">Jugadores</button>
@@ -107,40 +109,70 @@
       </section>
 
       <section id="tab-partidos" class="tab-section">
-        <div class="card">
-          <h2>Registrar datos de partido</h2>
-          <form id="form-match-player" class="form-grid">
-            <label>
-              <span>Jugador</span>
-              <select id="match-player" required></select>
-            </label>
-            <label>
-              <span>Goles</span>
-              <input id="match-goals" type="number" min="0" step="1" placeholder="0" />
-            </label>
-            <label>
-              <span>Asistencias</span>
-              <input id="match-assists" type="number" min="0" step="1" placeholder="0"/>
-            </label>
-            <label>
-              <span>Tarjetas amarillas</span>
-              <input id="match-yellows" type="number" min="0" step="1" placeholder="0"/>
-            </label>
-            <label>
-              <span>Tarjetas rojas</span>
-              <input id="match-reds" type="number" min="0" step="1" placeholder="0"/>
-            </label>
-            <label>
-              <span>Minutos</span>
-              <input id="match-minutes" type="number" min="0" step="1" placeholder="0 - 80"/>
-            </label>
-            <button type="submit" class="btn primary">Añadir registro</button>
-          </form>
+        <div class="card collapsible">
+          <h2 class="card-header" data-target="convocation-content">Registrar convocatoria</h2>
+          <div id="convocation-content" class="card-content" style="display: none;">
+            <form id="form-convocation" class="form-grid">
+              <label>
+                <span>Fecha del partido</span>
+                <input id="convocation-date" type="date" required />
+              </label>
+              <button type="submit" class="btn primary">Guardar convocatoria</button>
+            </form>
+            
+            <div class="card-divider"></div>
+            
+            <h3>Lista de convocatoria</h3>
+            <div id="convocation-empty" class="empty-state">Selecciona una fecha para registrar la convocatoria.</div>
+            <ul id="convocation-list" class="list checklist"></ul>
+          </div>
+        </div>
+
+        <div class="card collapsible">
+          <h2 class="card-header" data-target="match-content">Registrar datos de partido</h2>
+          <div id="match-content" class="card-content" style="display: none;">
+            <form id="form-match-player" class="form-grid">
+              <label>
+                <span>Fecha del partido</span>
+                <input id="match-date" type="date" required />
+              </label>
+              <label>
+                <span>Jugador</span>
+                <select id="match-player" required></select>
+              </label>
+              <label>
+                <span>Goles</span>
+                <input id="match-goals" type="number" min="0" step="1" placeholder="0" />
+              </label>
+              <label>
+                <span>Asistencias</span>
+                <input id="match-assists" type="number" min="0" step="1" placeholder="0"/>
+              </label>
+              <label>
+                <span>Tarjetas amarillas</span>
+                <input id="match-yellows" type="number" min="0" step="1" placeholder="0"/>
+              </label>
+              <label>
+                <span>Tarjetas rojas</span>
+                <input id="match-reds" type="number" min="0" step="1" placeholder="0"/>
+              </label>
+              <label>
+                <span>Minutos</span>
+                <input id="match-minutes" type="number" min="0" step="1" placeholder="0 - 80"/>
+              </label>
+              <button type="submit" class="btn primary">Añadir registro</button>
+            </form>
+          </div>
         </div>
 
         <div class="card">
           <h3>Registros recientes</h3>
           <ul id="recent-match-entries" class="list"></ul>
+        </div>
+
+        <div class="card">
+          <h3>Convocatorias recientes</h3>
+          <ul id="recent-convocations" class="list"></ul>
         </div>
       </section>
 
@@ -158,7 +190,7 @@
                   <th data-key="reds">🟥</th>
                   <th data-key="minutes">Min</th>
                   <th data-key="percent">%</th>
-                  <th data-key="games">PJ</th>
+                  <th data-key="convocations">C</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -223,9 +255,115 @@
       </div>
     </div>
 
+    <div id="login-modal" class="modal" hidden>
+      <div class="modal-content">
+        <h3>Iniciar sesión</h3>
+        <form id="login-form" class="form-grid compact" autocomplete="off">
+          <label>
+            <span>Email</span>
+            <input id="login-email" type="email" placeholder="usuario@correo.com" required />
+          </label>
+          <label>
+            <span>Contraseña</span>
+            <input id="login-password" type="password" placeholder="********" required />
+          </label>
+          <button type="submit" class="btn primary">Entrar</button>
+          <button type="button" id="login-close" class="btn">Cerrar</button>
+        </form>
+        <div id="login-error" class="empty-state" style="color:#fca5a5;"></div>
+      </div>
+    </div>
+
+    <!-- Modal de estadísticas detalladas del jugador -->
+    <div id="player-stats-modal" class="modal" hidden>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="player-stats-title">Estadísticas del Jugador</h2>
+        </div>
+        <div class="modal-body">
+          <div class="player-stats-grid">
+            <div class="stat-card">
+              <h3>Rendimiento Ofensivo</h3>
+              <div class="stat-item">
+                <span class="stat-label">Minutos por gol:</span>
+                <span class="stat-value" id="goals-per-minute">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Minutos por asistencia:</span>
+                <span class="stat-value" id="assists-per-minute">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Minutos por G+A:</span>
+                <span class="stat-value" id="goals-assists-per-minute">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Eficiencia ofensiva:</span>
+                <span class="stat-value" id="offensive-efficiency">-</span>
+              </div>
+            </div>
+            
+            <div class="stat-card">
+              <h3>Participación</h3>
+              <div class="stat-item">
+                <span class="stat-label">% Convocatorias:</span>
+                <span class="stat-value" id="convocation-percentage">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Partidos jugados:</span>
+                <span class="stat-value" id="matches-played">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Minutos totales:</span>
+                <span class="stat-value" id="total-minutes">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Promedio minutos/partido:</span>
+                <span class="stat-value" id="avg-minutes-per-match">-</span>
+              </div>
+            </div>
+            
+            <div class="stat-card">
+              <h3>Disciplina</h3>
+              <div class="stat-item">
+                <span class="stat-label">Tarjetas amarillas:</span>
+                <span class="stat-value" id="total-yellows">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Tarjetas rojas:</span>
+                <span class="stat-value" id="total-reds">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Minutos por tarjeta:</span>
+                <span class="stat-value" id="cards-per-minute">-</span>
+              </div>
+            </div>
+            
+            <div class="stat-card">
+              <h3>Resumen</h3>
+              <div class="stat-item">
+                <span class="stat-label">Total goles:</span>
+                <span class="stat-value" id="total-goals">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Total asistencias:</span>
+                <span class="stat-value" id="total-assists">-</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Total G+A:</span>
+                <span class="stat-value" id="total-goals-assists">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <footer class="app-footer">
-      <button id="open-settings" class="btn">Configuración</button>
-      <button id="reset-data" class="btn danger">Borrar todo</button>
+      <div class="footer-top-row">
+        <button id="open-settings" class="btn">Configuración</button>
+        <button id="reset-data" class="btn danger">Borrar todo</button>
+      </div>
+      <button id="logout-btn" class="btn danger logout-btn">Cerrar sesión</button>
     </footer>
 
     <!-- Firebase (compat) for optional cloud sync -->

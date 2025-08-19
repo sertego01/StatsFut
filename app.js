@@ -6,6 +6,7 @@
     players: 'asistencia_players',
     sessions: 'asistencia_sessions',
     matches: 'asistencia_matches',
+    convocations: 'asistencia_convocations',
     lastSelectedDate: 'asistencia_last_date'
   };
 
@@ -13,6 +14,7 @@
   let players = [];
   let sessions = [];
   let matches = [];
+  let convocations = [];
 
   // ---- Utilidades ----
   function generateId(prefix) {
@@ -23,6 +25,7 @@
     localStorage.setItem(STORAGE_KEYS.players, JSON.stringify(players));
     localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify(sessions));
     localStorage.setItem(STORAGE_KEYS.matches, JSON.stringify(matches));
+    localStorage.setItem(STORAGE_KEYS.convocations, JSON.stringify(convocations));
   }
 
   function loadState() {
@@ -30,13 +33,16 @@
       const p = JSON.parse(localStorage.getItem(STORAGE_KEYS.players) || '[]');
       const s = JSON.parse(localStorage.getItem(STORAGE_KEYS.sessions) || '[]');
       const m = JSON.parse(localStorage.getItem(STORAGE_KEYS.matches) || '[]');
+      const c = JSON.parse(localStorage.getItem(STORAGE_KEYS.convocations) || '[]');
       if (Array.isArray(p)) players = p; else players = [];
       if (Array.isArray(s)) sessions = s; else sessions = [];
       if (Array.isArray(m)) matches = m; else matches = [];
+      if (Array.isArray(c)) convocations = c; else convocations = [];
     } catch (e) {
       players = [];
       sessions = [];
       matches = [];
+      convocations = [];
     }
     // Normaliza: ordena jugadores por nombre
     players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
@@ -186,9 +192,44 @@
     saveState();
   }
 
+  function addConvocation(convocation) {
+    convocations.push(convocation);
+    convocations.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    saveState();
+  }
+
+  function findConvocationByDate(dateStr) {
+    return convocations.find(c => c.date === dateStr) || null;
+  }
+
+  function upsertConvocation(newConvocation) {
+    const idx = convocations.findIndex(c => c.date === newConvocation.date);
+    if (idx >= 0) {
+      // Mantener el ID original si es una edición
+      newConvocation.id = convocations[idx].id;
+      newConvocation.createdAt = convocations[idx].createdAt;
+      convocations[idx] = { ...convocations[idx], ...newConvocation };
+    } else {
+      convocations.push(newConvocation);
+    }
+    convocations.sort((a, b) => (a.date).localeCompare(b.date));
+    saveState();
+  }
+
   function computeMatchStats() {
     const totalsByPlayer = new Map();
-    players.forEach(p => totalsByPlayer.set(p.id, { goals: 0, assists: 0, yellows: 0, reds: 0, minutes: 0, games: 0 }));
+    players.forEach(p => totalsByPlayer.set(p.id, { goals: 0, assists: 0, yellows: 0, reds: 0, minutes: 0, convocations: 0 }));
+    
+    // Contar convocatorias
+    convocations.forEach(conv => {
+      Object.entries(conv.players).forEach(([playerId, status]) => {
+        if (status === 'C') {
+          const agg = totalsByPlayer.get(playerId);
+          if (agg) agg.convocations += 1;
+        }
+      });
+    });
+    
     matches.forEach(ent => {
       const agg = totalsByPlayer.get(ent.playerId);
       if (!agg) return;
@@ -202,13 +243,11 @@
       agg.yellows += yellows;
       agg.reds += reds;
       agg.minutes += minutes;
-      if (minutes > 0 || goals > 0 || assists > 0 || yellows > 0 || reds > 0) {
-        agg.games += 1;
-      }
     });
+    
     const rows = players.map(p => {
-      const t = totalsByPlayer.get(p.id) || { goals: 0, assists: 0, yellows: 0, reds: 0, minutes: 0, games: 0 };
-      const denom = t.games > 0 ? t.games * (config.matchMinutes || 80) : 0;
+      const t = totalsByPlayer.get(p.id) || { goals: 0, assists: 0, yellows: 0, reds: 0, minutes: 0, convocations: 0 };
+      const denom = t.convocations > 0 ? t.convocations * (config.matchMinutes || 80) : 0;
       const percent = denom > 0 ? Math.round(Math.min(100, (t.minutes / denom) * 100)) : 0;
       return { player: p, percent, ...t };
     });
@@ -267,8 +306,18 @@
   const selectCfgCloudEnabled = $('#cfg-cloud-enabled');
   const textareaCfgFirebase = $('#cfg-firebase-json');
   const btnSettingsClose = $('#settings-close');
+  // Auth UI
+  const btnOpenLogin = $('#open-login');
+  const btnLogout = $('#logout-btn');
+  const loginModal = $('#login-modal');
+  const loginForm = $('#login-form');
+  const inputLoginEmail = $('#login-email');
+  const inputLoginPassword = $('#login-password');
+  const btnLoginClose = $('#login-close');
+  const loginError = $('#login-error');
 
   let config = { matchMinutes: 80, theme: 'dark', bg: null, primary: null };
+  let isAuthenticated = false;
 
   // ---- Firebase / Cloud Sync ----
   const STORAGE_KEYS_CLOUD = {
@@ -340,13 +389,10 @@
         cloud.auth = firebase.auth(cloud.app);
       }
 
-      // Autenticación anónima
-      if (!cloud.auth.currentUser) {
-        await cloud.auth.signInAnonymously();
-      }
+      // No forzamos login anónimo: el usuario debe iniciar sesión para editar
 
-      // Iniciar sincronización
-      startCloudSync();
+      // Iniciar sincronización sólo si hay sesión
+      if (isAuthenticated) startCloudSync();
       
       console.log('Firebase inicializado correctamente');
     } catch (error) {
@@ -365,6 +411,7 @@
 
     // Sincronizar jugadores
     cloud.db.collection('players').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return; // Solo reflejar datos si hay sesión iniciada
       if (isApplyingCloudSnapshot) return;
       
       const changes = snapshot.docChanges();
@@ -400,6 +447,7 @@
 
     // Sincronizar sesiones
     cloud.db.collection('sessions').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       const changes = snapshot.docChanges();
@@ -433,6 +481,7 @@
 
     // Sincronizar entradas de partido
     cloud.db.collection('matchEntries').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       const changes = snapshot.docChanges();
@@ -464,6 +513,7 @@
   // Sincronizar datos locales a la nube
   async function syncDataToCloud() {
     if (!cloud.enabled || !cloud.db) return;
+    if (!isAuthenticated) return;
     
     console.log('Sincronizando datos locales a la nube...');
     
@@ -504,6 +554,143 @@
     }
   }
 
+  // ---- Auth: control de visibilidad/edición ----
+  function applyAuthRestrictions() {
+    // Tabs restringidas
+    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos'];
+    const allTabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+    allTabButtons.forEach(btn => {
+      const target = btn.getAttribute('data-target');
+      const isRestricted = restrictedTargets.includes(target);
+      // Mostrar solo estadísticas y login si no está autenticado
+      if (!isAuthenticated) {
+        if (target === 'tab-estadisticas' || target === 'tab-estadisticas-partidos') {
+          btn.style.display = '';
+        } else {
+          btn.style.display = 'none';
+        }
+      } else {
+        // autenticado: mostrar todos
+        btn.style.display = '';
+      }
+    });
+
+    // Ajustar textos de los botones de estadísticas y hacerlos ocupar todo el ancho cuando NO hay sesión
+    const btnStatsTrain = document.querySelector('.tab-btn[data-target="tab-estadisticas"]');
+    const btnStatsMatch = document.querySelector('.tab-btn[data-target="tab-estadisticas-partidos"]');
+    if (!isAuthenticated) {
+      if (btnStatsTrain) {
+        btnStatsTrain.textContent = 'Estadísticas de entrenamientos';
+        btnStatsTrain.style.width = '100%';
+      }
+      if (btnStatsMatch) {
+        btnStatsMatch.textContent = 'Estadísticas de partidos';
+        btnStatsMatch.style.width = '100%';
+      }
+    } else {
+      if (btnStatsTrain) { btnStatsTrain.textContent = 'Estadísticas'; btnStatsTrain.style.width = ''; }
+      if (btnStatsMatch) { btnStatsMatch.textContent = 'Estadísticas'; btnStatsMatch.style.width = ''; }
+    }
+
+    // Forzar filas de pestañas a 1 columna cuando solo queda un botón visible (modo sin sesión)
+    const tabRows = Array.from(document.querySelectorAll('.tabs-nav .tabs-row'));
+    tabRows.forEach(row => {
+      const visibleButtons = Array.from(row.querySelectorAll('.tab-btn')).filter(b => b.style.display !== 'none');
+      if (!isAuthenticated) {
+        row.style.gridTemplateColumns = '1fr';
+      } else {
+        // Restaurar layout por defecto
+        row.style.gridTemplateColumns = '';
+      }
+    });
+
+    // Botón de iniciar sesión ocupa todo el ancho (cuando se muestra)
+    const authActions = document.querySelector('.auth-actions');
+    if (authActions && btnOpenLogin) {
+      if (!isAuthenticated) {
+        btnOpenLogin.style.width = '100%';
+      } else {
+        btnOpenLogin.style.width = '';
+      }
+    }
+    // Si la pestaña activa es restringida y no está autenticado, saltar a estadísticas
+    const activeBtn = document.querySelector('.tab-btn.is-active');
+    const activeTarget = activeBtn ? activeBtn.getAttribute('data-target') : null;
+    if (!isAuthenticated && ['tab-jugadores','tab-entrenamientos','tab-partidos'].includes(activeTarget)) {
+      const statsBtn = document.querySelector('.tab-btn[data-target="tab-estadisticas"]') || document.querySelector('.tab-btn[data-target="tab-estadisticas-partidos"]');
+      if (statsBtn) statsBtn.click();
+    }
+    
+    // Footer: mostrar siempre en todas las pestañas
+    if (appFooter) appFooter.style.display = 'flex';
+    
+    // Botones de auth
+    if (btnOpenLogin) btnOpenLogin.style.display = isAuthenticated ? 'none' : '';
+    if (btnLogout) btnLogout.style.display = isAuthenticated ? '' : 'none';
+    
+    // Botón "Borrar todo" solo visible con sesión iniciada
+    const btnResetData = document.getElementById('reset-data');
+    if (btnResetData) {
+      btnResetData.style.display = isAuthenticated ? '' : 'none';
+    }
+    
+    // Ajustar layout del footer según autenticación
+    const footerTopRow = document.querySelector('.footer-top-row');
+    if (footerTopRow) {
+      if (isAuthenticated) {
+        footerTopRow.classList.remove('single-button');
+      } else {
+        footerTopRow.classList.add('single-button');
+      }
+    }
+  }
+
+  function setupAuthUI() {
+    if (btnOpenLogin && loginModal && loginForm && inputLoginEmail && inputLoginPassword) {
+      btnOpenLogin.addEventListener('click', () => {
+        loginError && (loginError.textContent = '');
+        loginModal.hidden = false;
+      });
+      if (btnLoginClose) btnLoginClose.addEventListener('click', () => { loginModal.hidden = true; });
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        loginError && (loginError.textContent = '');
+        const email = inputLoginEmail.value.trim();
+        const password = inputLoginPassword.value;
+        if (!email || !password) return;
+        try {
+          await initFirebaseIfEnabled();
+          if (!cloud.auth) throw new Error('Auth no disponible');
+          await cloud.auth.signInWithEmailAndPassword(email, password);
+          isAuthenticated = true;
+          applyAuthRestrictions();
+          loginModal.hidden = true;
+          // refrescar datos visibles
+          renderPlayersList();
+          renderAttendanceList();
+          renderStats();
+          renderMatchPlayerForm();
+          renderMatchStats();
+          renderRecentMatchEntries();
+        } catch (err) {
+          console.error(err);
+          if (loginError) loginError.textContent = err.message || 'Error al iniciar sesión';
+        }
+      });
+    }
+    if (btnLogout) {
+      btnLogout.addEventListener('click', async () => {
+        try {
+          if (cloud.auth && cloud.auth.currentUser) {
+            await cloud.auth.signOut();
+          }
+        } catch {}
+        isAuthenticated = false;
+        applyAuthRestrictions();
+      });
+    }
+  }
+
   // Cargar configuración de la nube
   function loadCloudConfig() {
     try {
@@ -541,6 +728,7 @@
 
   // Partidos (form por jugador)
   const formMatchPlayer = $('#form-match-player');
+  const inputMatchDate = $('#match-date');
   const selectMatchPlayer = $('#match-player');
   const inputMatchGoals = $('#match-goals');
   const inputMatchAssists = $('#match-assists');
@@ -548,6 +736,13 @@
   const inputMatchReds = $('#match-reds');
   const inputMatchMinutes = $('#match-minutes');
   const recentMatchEntries = $('#recent-match-entries');
+
+  // Convocatorias
+  const recentConvocations = $('#recent-convocations');
+  const formConvocation = $('#form-convocation');
+  const inputConvocationDate = $('#convocation-date');
+  const convocationList = $('#convocation-list');
+  const convocationEmpty = $('#convocation-empty');
 
   // Estadísticas de Partidos
   const formMStatsFilter = $('#form-mstats-filter');
@@ -567,7 +762,7 @@
     const targetId = btn.getAttribute('data-target');
     $$('.tab-btn', tabsNav).forEach(b => b.classList.toggle('is-active', b === btn));
     tabSections.forEach(sec => sec.classList.toggle('is-active', sec.id === targetId));
-    if (appFooter) appFooter.style.display = targetId === 'tab-jugadores' ? 'flex' : 'none';
+
     if (targetId === 'tab-entrenamientos') {
       renderAttendanceList();
     } else if (targetId === 'tab-estadisticas') {
@@ -576,6 +771,7 @@
     } else if (targetId === 'tab-partidos') {
       renderMatchPlayerForm();
       renderRecentMatchEntries();
+      renderRecentConvocations();
     } else if (targetId === 'tab-estadisticas-partidos') {
       renderMatchStats();
     }
@@ -944,13 +1140,109 @@
 
   // ---- Render Partidos (poblado de select) ----
   function renderMatchPlayerForm() {
-    if (!selectMatchPlayer) return;
+    if (!selectMatchPlayer || !inputMatchDate) return;
+    
+    const selectedDate = inputMatchDate.value;
+    if (!selectedDate) {
+      // Si no hay fecha seleccionada, mostrar todos los jugadores
+      selectMatchPlayer.innerHTML = '';
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = 'Selecciona una fecha primero';
+      defaultOpt.disabled = true;
+      selectMatchPlayer.appendChild(defaultOpt);
+      return;
+    }
+    
+    // Buscar convocatoria para esa fecha
+    const convocation = findConvocationByDate(selectedDate);
+    if (!convocation) {
+      // Si no hay convocatoria para esa fecha, mostrar mensaje
+      selectMatchPlayer.innerHTML = '';
+      const noConvOpt = document.createElement('option');
+      noConvOpt.value = '';
+      noConvOpt.textContent = 'No hay convocatoria para esta fecha';
+      noConvOpt.disabled = true;
+      selectMatchPlayer.appendChild(noConvOpt);
+      return;
+    }
+    
+    // Filtrar solo jugadores convocados
     selectMatchPlayer.innerHTML = '';
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Selecciona un jugador convocado';
+    defaultOpt.disabled = true;
+    selectMatchPlayer.appendChild(defaultOpt);
+    
     players.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.name;
-      selectMatchPlayer.appendChild(opt);
+      if (convocation.players[p.id] === 'C') {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        selectMatchPlayer.appendChild(opt);
+      }
+    });
+  }
+
+  function renderConvocationList() {
+    if (!convocationList || !convocationEmpty) return;
+    
+    const selectedDate = inputConvocationDate.value;
+    if (!selectedDate) {
+      convocationEmpty.textContent = 'Selecciona una fecha para registrar la convocatoria.';
+      convocationEmpty.style.display = '';
+      convocationList.innerHTML = '';
+      return;
+    }
+
+    const existing = findConvocationByDate(selectedDate);
+    const convocationStatuses = existing ? existing.players : {};
+
+    convocationEmpty.style.display = 'none';
+    convocationList.innerHTML = '';
+
+    // No mostrar validaciones en tiempo real, solo al guardar
+
+    players.forEach(p => {
+      const li = document.createElement('li');
+      const nameDiv = document.createElement('div');
+      nameDiv.textContent = p.name;
+      const right = document.createElement('div');
+      const group = document.createElement('div');
+      group.className = 'radio-group radio-cn';
+      
+      const name = `conv_${p.id}`;
+      const current = convocationStatuses[p.id] || 'C';
+      
+      ['C', 'NC'].forEach(code => {
+        const wrap = document.createElement('div');
+        wrap.className = 'radio';
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = name;
+        input.value = code;
+        input.dataset.playerId = p.id;
+        input.checked = current === code;
+        const rid = `conv_${p.id}_${code}`;
+        input.id = rid;
+        const label = document.createElement('label');
+        label.setAttribute('for', rid);
+        label.textContent = code;
+        
+        // No deshabilitar en tiempo real, permitir que el usuario haga cambios
+        
+        wrap.appendChild(input);
+        wrap.appendChild(label);
+        group.appendChild(wrap);
+        
+        // No re-renderizar en tiempo real para evitar perder cambios del usuario
+      });
+      
+      li.appendChild(nameDiv);
+      right.appendChild(group);
+      li.appendChild(right);
+      convocationList.appendChild(li);
     });
   }
 
@@ -1001,6 +1293,72 @@
     });
   }
 
+  function renderRecentConvocations() {
+    if (!recentConvocations) return;
+    const items = convocations.slice(-10).reverse();
+    recentConvocations.innerHTML = '';
+    
+    items.forEach(conv => {
+      const li = document.createElement('li');
+      const left = document.createElement('div');
+      const right = document.createElement('div');
+      right.className = 'row-actions';
+      
+      const title = document.createElement('div');
+      title.textContent = formatDateHuman(conv.date);
+      
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      
+      // Contar jugadores convocados
+      const convocadosCount = Object.values(conv.players).filter(status => status === 'C').length;
+      const totalPlayers = Object.keys(conv.players).length;
+      
+              meta.textContent = `${convocadosCount}/${totalPlayers} convocados`;
+      
+      left.appendChild(title);
+      left.appendChild(meta);
+
+      const btnLoad = document.createElement('button');
+      btnLoad.className = 'btn';
+      btnLoad.textContent = 'Cargar';
+      btnLoad.addEventListener('click', () => {
+        inputConvocationDate.value = conv.date;
+        renderConvocationList();
+      });
+
+      const btnDelete = document.createElement('button');
+      btnDelete.className = 'btn danger';
+      btnDelete.textContent = 'Eliminar';
+      btnDelete.addEventListener('click', () => {
+        if (confirm(`¿Eliminar la convocatoria del ${formatDateHuman(conv.date)}?`)) {
+          const idx = convocations.findIndex(c => c.id === conv.id);
+          if (idx >= 0) {
+            const convocationId = conv.id;
+            convocations.splice(idx, 1);
+            saveState();
+            
+            // Sincronizar eliminación con Firebase
+            if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+              cloud.db.collection('convocations').doc(convocationId).delete().catch((error) => {
+                console.error('Error eliminando convocatoria de la nube:', error);
+              });
+            }
+            
+            renderMatchStats();
+            renderRecentConvocations();
+          }
+        }
+      });
+
+      right.appendChild(btnLoad);
+      right.appendChild(btnDelete);
+      li.appendChild(left);
+      li.appendChild(right);
+      recentConvocations.appendChild(li);
+    });
+  }
+
   function renderMatchStats() {
     if (!mstatsTbody || !mstatsTable || !mstatsEmpty) return;
     const from = inputMStatsFrom ? (inputMStatsFrom.value || null) : null;
@@ -1017,22 +1375,31 @@
       return (dir === 'asc' ? (av - bv) : (bv - av));
     });
     mstatsTbody.innerHTML = '';
-    const hasMatches = matches.length > 0 && rows.some(r => {
+    const hasMatches = (matches.length > 0 || convocations.length > 0) && rows.some(r => {
       // oculta jugadores eliminados (nunca estarán en rows) y muestra si hay datos
-      return r.games > 0 || r.goals > 0 || r.assists > 0 || r.minutes > 0 || r.yellows > 0 || r.reds > 0;
+      return r.convocations > 0 || r.goals > 0 || r.assists > 0 || r.minutes > 0 || r.yellows > 0 || r.reds > 0;
     });
     mstatsEmpty.classList.toggle('is-hidden', hasMatches);
     mstatsTable.style.display = hasMatches ? 'table' : 'none';
     rows.forEach(r => {
       const tr = document.createElement('tr');
-      const tdName = document.createElement('td'); tdName.textContent = r.player.name;
+      
+      // Crear celda del nombre con clickeable
+      const tdName = document.createElement('td');
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = r.player.name;
+      nameSpan.className = 'player-name-clickable';
+      nameSpan.onclick = () => showPlayerDetailedStats(r);
+      tdName.appendChild(nameSpan);
+      
       const tdGoals = document.createElement('td'); tdGoals.textContent = String(r.goals);
       const tdAst = document.createElement('td'); tdAst.textContent = String(r.assists);
       const tdY = document.createElement('td'); tdY.textContent = String(r.yellows);
       const tdR = document.createElement('td'); tdR.textContent = String(r.reds);
       const tdMin = document.createElement('td'); tdMin.textContent = String(r.minutes);
       const tdPct = document.createElement('td'); tdPct.textContent = `${r.percent}%`;
-      const tdGames = document.createElement('td'); tdGames.textContent = String(r.games);
+      const tdConvocations = document.createElement('td'); tdConvocations.textContent = String(r.convocations);
+      
       tr.appendChild(tdName);
       tr.appendChild(tdGoals);
       tr.appendChild(tdAst);
@@ -1040,7 +1407,7 @@
       tr.appendChild(tdR);
       tr.appendChild(tdMin);
       tr.appendChild(tdPct);
-      tr.appendChild(tdGames);
+      tr.appendChild(tdConvocations);
       mstatsTbody.appendChild(tr);
     });
   }
@@ -1228,10 +1595,77 @@
   if (formMatchPlayer) {
     formMatchPlayer.addEventListener('submit', (e) => {
       e.preventDefault();
+      const date = inputMatchDate ? inputMatchDate.value : '';
       const playerId = selectMatchPlayer ? selectMatchPlayer.value : '';
-      if (!playerId) return;
+      
+      if (!date) {
+        alert('Por favor, selecciona una fecha para el partido.');
+        return;
+      }
+      
+      if (!playerId) {
+        alert('Por favor, selecciona un jugador.');
+        return;
+      }
+      
+      // Verificar que el jugador esté convocado para esa fecha
+      const convocation = findConvocationByDate(date);
+      if (!convocation) {
+        alert('No hay convocatoria registrada para esa fecha.');
+        return;
+      }
+      
+      if (convocation.players[playerId] !== 'C') {
+        alert('Este jugador no está convocado para el partido de esa fecha.');
+        return;
+      }
+      
+      // Verificar si ya existen datos para este jugador en esta fecha
+      console.log('Verificando duplicados para:', playerId, date);
+      const existingEntry = findMatchEntryByPlayerAndDate(playerId, date);
+      console.log('Entrada existente encontrada:', existingEntry);
+      if (existingEntry) {
+        const confirmed = confirm(`Ya existen datos para ${getPlayerName(playerId)} en la fecha ${formatDateHuman(date)}. ¿Deseas sobrescribirlos?`);
+        if (!confirmed) return;
+        
+        // Actualizar entrada existente
+        existingEntry.goals = Math.max(0, parseInt(inputMatchGoals.value, 10) || 0);
+        existingEntry.assists = Math.max(0, parseInt(inputMatchAssists.value, 10) || 0);
+        existingEntry.yellows = Math.max(0, parseInt(inputMatchYellows.value, 10) || 0);
+        existingEntry.reds = Math.max(0, parseInt(inputMatchReds.value, 10) || 0);
+        existingEntry.minutes = Math.max(0, parseInt(inputMatchMinutes.value, 10) || 0);
+        existingEntry.updatedAt = Date.now();
+        
+        // Actualizar en el array local
+        const entryIndex = matches.findIndex(e => e.id === existingEntry.id);
+        if (entryIndex !== -1) {
+          matches[entryIndex] = existingEntry;
+        }
+        
+        // Sincronizar con la nube si está habilitada
+        if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+          cloud.db.collection('matchEntries').doc(existingEntry.id).set(existingEntry).catch((error) => {
+            console.error('Error sincronizando entrada de partido actualizada a la nube:', error);
+          });
+        }
+        
+        renderMatchStats();
+        renderRecentMatchEntries();
+        
+        // Limpiar formulario
+        inputMatchGoals.value = '0';
+        inputMatchAssists.value = '0';
+        inputMatchYellows.value = '0';
+        inputMatchReds.value = '0';
+        inputMatchMinutes.value = '0';
+        
+        alert(`Datos actualizados para ${getPlayerName(playerId)} en ${formatDateHuman(date)}`);
+        return;
+      }
+      
       const entry = {
         id: generateId('mentry'),
+        date,
         createdAt: Date.now(),
         playerId,
         goals: Math.max(0, parseInt(inputMatchGoals.value, 10) || 0),
@@ -1240,15 +1674,18 @@
         reds: Math.max(0, parseInt(inputMatchReds.value, 10) || 0),
         minutes: Math.max(0, parseInt(inputMatchMinutes.value, 10) || 0)
       };
+      
       addMatchEntry(entry);
       if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
         cloud.db.collection('matchEntries').doc(entry.id).set(entry).catch((error) => {
           console.error('Error sincronizando entrada de partido a la nube:', error);
         });
       }
+      
       renderMatchStats();
       renderRecentMatchEntries();
-      // Limpiar a 0 manteniendo el jugador seleccionado
+      
+      // Limpiar a 0 manteniendo la fecha y el jugador seleccionado
       inputMatchGoals.value = '0';
       inputMatchAssists.value = '0';
       inputMatchYellows.value = '0';
@@ -1257,15 +1694,218 @@
     });
   }
 
+  // Guardar convocatoria
+  if (formConvocation) {
+    formConvocation.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const date = inputConvocationDate.value;
+      
+      if (!date) {
+        alert('Por favor, selecciona una fecha para el partido.');
+        return;
+      }
+      
+      // Verificar si ya existe una convocatoria para esa fecha
+      const existingConvocation = findConvocationByDate(date);
+      if (existingConvocation) {
+        const confirmed = confirm(`Ya existe una convocatoria para el ${formatDateHuman(date)}. ¿Deseas sobrescribirla?`);
+        if (!confirmed) return;
+      }
+      
+      const players = {};
+      document.querySelectorAll('#convocation-list input[type="radio"]:checked').forEach(radio => {
+        const playerId = radio.dataset.playerId;
+        players[playerId] = radio.value;
+      });
+
+      // Contar jugadores convocados
+      const convocadosCount = Object.values(players).filter(status => status === 'C').length;
+      
+      // Validar máximo 18 jugadores convocados
+      if (convocadosCount > 18) {
+        alert(`No se puede guardar la convocatoria. Máximo 18 jugadores convocados. Actualmente: ${convocadosCount}`);
+        return;
+      }
+      
+      // Validar que al menos haya 11 jugadores convocados
+      if (convocadosCount < 11) {
+        alert(`Debe convocar al menos 11 jugadores. Actualmente: ${convocadosCount}`);
+        return;
+      }
+
+      const convocation = {
+        id: existingConvocation ? existingConvocation.id : generateId('convocation'),
+        date,
+        players,
+        createdAt: existingConvocation ? existingConvocation.createdAt : Date.now()
+      };
+      
+      upsertConvocation(convocation);
+      if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+        cloud.db.collection('convocations').doc(convocation.id).set(convocation).catch((error) => {
+          console.error('Error sincronizando convocatoria a la nube:', error);
+        });
+      }
+      
+      renderMatchStats();
+      renderRecentConvocations();
+    });
+  }
+
+  // Event listener para fecha de convocatoria
+  if (inputConvocationDate) {
+    inputConvocationDate.addEventListener('change', () => {
+      renderConvocationList();
+    });
+  }
+
+  // Event listener para fecha del partido
+  if (inputMatchDate) {
+    inputMatchDate.addEventListener('change', () => {
+      renderMatchPlayerForm();
+    });
+  }
+
+  // Event listener para cerrar modal de estadísticas del jugador
+  document.addEventListener('click', (e) => {
+    const playerStatsModal = document.getElementById('player-stats-modal');
+    if (playerStatsModal && !playerStatsModal.hidden && e.target === playerStatsModal) {
+      playerStatsModal.hidden = true;
+    }
+  });
+
+  // Funcionalidad de cards colapsibles
+  function setupCollapsibleCards() {
+    const cardHeaders = document.querySelectorAll('.card-header[data-target]');
+    cardHeaders.forEach(header => {
+      header.addEventListener('click', () => {
+        const targetId = header.getAttribute('data-target');
+        const content = document.getElementById(targetId);
+        if (content) {
+          const isExpanded = content.style.display !== 'none';
+          content.style.display = isExpanded ? 'none' : 'block';
+          header.classList.toggle('expanded', !isExpanded);
+        }
+      });
+    });
+  }
+
+  // Función para cerrar modales
+  function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.hidden = true;
+    }
+  }
+
+  // Función para buscar entrada de partido por jugador y fecha
+  function findMatchEntryByPlayerAndDate(playerId, date) {
+    return matches.find(entry => entry.playerId === playerId && entry.date === date);
+  }
+
+  // Función para obtener nombre del jugador por ID
+  function getPlayerName(playerId) {
+    const player = players.find(p => p.id === playerId);
+    return player ? player.name : 'Jugador desconocido';
+  }
+
+  // Función para mostrar estadísticas detalladas del jugador
+  function showPlayerDetailedStats(playerStats) {
+    const modal = document.getElementById('player-stats-modal');
+    const title = document.getElementById('player-stats-title');
+    
+    if (!modal || !title) return;
+    
+    // Actualizar título
+    title.textContent = `Estadísticas de ${playerStats.player.name}`;
+    
+    // Calcular estadísticas detalladas
+    const stats = calculateDetailedPlayerStats(playerStats);
+    
+    // Actualizar valores en el modal
+    document.getElementById('goals-per-minute').textContent = stats.minutesPerGoal;
+    document.getElementById('assists-per-minute').textContent = stats.minutesPerAssist;
+    document.getElementById('goals-assists-per-minute').textContent = stats.minutesPerGoalAssist;
+    document.getElementById('offensive-efficiency').textContent = stats.offensiveEfficiency;
+    
+    document.getElementById('convocation-percentage').textContent = stats.convocationPercentage;
+    document.getElementById('matches-played').textContent = stats.matchesPlayed;
+    document.getElementById('total-minutes').textContent = stats.totalMinutes;
+    document.getElementById('avg-minutes-per-match').textContent = stats.avgMinutesPerMatch;
+    
+    document.getElementById('total-yellows').textContent = stats.totalYellows;
+    document.getElementById('total-reds').textContent = stats.totalReds;
+    document.getElementById('cards-per-minute').textContent = stats.minutesPerCard;
+    
+    document.getElementById('total-goals').textContent = stats.totalGoals;
+    document.getElementById('total-assists').textContent = stats.totalAssists;
+    document.getElementById('total-goals-assists').textContent = stats.totalGoalsAssists;
+    
+    // Mostrar modal
+    modal.hidden = false;
+  }
+
+  // Función para calcular estadísticas detalladas del jugador
+  function calculateDetailedPlayerStats(playerStats) {
+    const player = playerStats.player;
+    const totalMinutes = playerStats.minutes || 0;
+    const totalGoals = playerStats.goals || 0;
+    const totalAssists = playerStats.assists || 0;
+    const totalYellows = playerStats.yellows || 0;
+    const totalReds = playerStats.reds || 0;
+    const playerConvocations = playerStats.convocations || 0;
+    
+    // Calcular total de convocatorias posibles (todas las convocatorias registradas en el sistema)
+    const totalPossibleConvocations = convocations.length;
+    
+    // Estadísticas de minutos por acción (cuántos minutos necesita para marcar/ayudar/recibir tarjeta)
+    const minutesPerGoal = totalGoals > 0 ? (totalMinutes / totalGoals).toFixed(1) : 'N/A';
+    const minutesPerAssist = totalAssists > 0 ? (totalMinutes / totalAssists).toFixed(1) : 'N/A';
+    const minutesPerGoalAssist = (totalGoals + totalAssists) > 0 ? (totalMinutes / (totalGoals + totalAssists)).toFixed(1) : 'N/A';
+    
+    // Eficiencia ofensiva (G+A por cada 80 minutos)
+    const offensiveEfficiency = totalMinutes > 0 ? ((totalGoals + totalAssists) / totalMinutes * 80).toFixed(2) : '0.00';
+    
+    // Porcentaje de convocatorias (partidos convocado / total convocatorias * 100)
+    const convocationPercentage = totalPossibleConvocations > 0 ? 
+      Math.round((playerConvocations / totalPossibleConvocations) * 100) : 0;
+    
+    // Partidos jugados (convocaciones donde jugó)
+    const matchesPlayed = playerConvocations;
+    
+    // Promedio de minutos por partido
+    const avgMinutesPerMatch = matchesPlayed > 0 ? Math.round(totalMinutes / matchesPlayed) : 0;
+    
+    // Minutos por tarjeta (cuántos minutos puede jugar sin recibir tarjeta)
+    const minutesPerCard = (totalYellows + totalReds) > 0 ? (totalMinutes / (totalYellows + totalReds)).toFixed(1) : 'N/A';
+    
+    // Total G+A
+    const totalGoalsAssists = totalGoals + totalAssists;
+    
+    return {
+      minutesPerGoal: minutesPerGoal,
+      minutesPerAssist: minutesPerAssist,
+      minutesPerGoalAssist: minutesPerGoalAssist,
+      offensiveEfficiency: `${offensiveEfficiency} G+A/80min`,
+      convocationPercentage: `${convocationPercentage}%`,
+      matchesPlayed: matchesPlayed,
+      totalMinutes: `${totalMinutes} min`,
+      avgMinutesPerMatch: `${avgMinutesPerMatch} min`,
+      totalYellows: totalYellows,
+      totalReds: totalReds,
+      minutesPerCard: minutesPerCard,
+      totalGoals: totalGoals,
+      totalAssists: totalAssists,
+      totalGoalsAssists: totalGoalsAssists
+    };
+  }
+
   // No hay fecha ni filtros de partidos en este modo
 
   // ---- Inicialización ----
   function renderAll() {
     renderPlayersList();
     // Intenta mantener la fecha seleccionada
-    const lastDate = localStorage.getItem(STORAGE_KEYS.lastSelectedDate);
-    inputSessionDate.value = lastDate || todayISO();
-    const existing = findSessionByDate(inputSessionDate.value);
     renderAttendanceList();
     renderStats();
     renderRecentSessions();
@@ -1273,6 +1913,9 @@
     renderMatchPlayerForm();
     renderMatchStats();
     renderRecentMatchEntries();
+    // Convocatorias
+    renderConvocationList();
+    renderRecentConvocations();
   }
 
   function init() {
@@ -1293,10 +1936,10 @@
     inputSessionDate.value = lastDate || todayISO();
     renderAll();
     applyThemeFromConfig();
-    // Mostrar el botón de borrar solo en Jugadores al inicio
-    const activeSection = document.querySelector('.tab-section.is-active');
-    if (appFooter) appFooter.style.display = activeSection && activeSection.id === 'tab-jugadores' ? 'flex' : 'none';
-    
+    setupAuthUI();
+    setupCollapsibleCards();
+    applyAuthRestrictions();
+
     // Inicializar Firebase si está habilitado
     if (cloud.enabled) {
       initFirebaseIfEnabled();
