@@ -282,6 +282,8 @@
     db: null,
     firebaseConfig: null
   };
+  let isApplyingCloudSnapshot = false;
+  let cloudSyncStarted = false;
 
   // Configuración de Firebase por defecto (para nuevos usuarios)
   const DEFAULT_FIREBASE_CONFIG = {
@@ -294,7 +296,7 @@
     "measurementId": "G-1RS15E65BY"
   };
 
-  let isApplyingCloudSnapshot = false;
+  
 
   // Inicializar Firebase si está habilitado
   async function initFirebaseIfEnabled() {
@@ -312,13 +314,22 @@
           script.onerror = reject;
         });
         
-        const authScript = document.createElement('script');
-        authScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js';
-        document.head.appendChild(authScript);
+        const authCompatScript = document.createElement('script');
+        authCompatScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js';
+        document.head.appendChild(authCompatScript);
         
         await new Promise((resolve, reject) => {
-          authScript.onload = resolve;
-          authScript.onerror = reject;
+          authCompatScript.onload = resolve;
+          authCompatScript.onerror = reject;
+        });
+
+        const firestoreCompatScript = document.createElement('script');
+        firestoreCompatScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js';
+        document.head.appendChild(firestoreCompatScript);
+        
+        await new Promise((resolve, reject) => {
+          firestoreCompatScript.onload = resolve;
+          firestoreCompatScript.onerror = reject;
         });
       }
 
@@ -347,6 +358,8 @@
   // Iniciar sincronización en tiempo real
   function startCloudSync() {
     if (!cloud.enabled || !cloud.db) return;
+    if (cloudSyncStarted) return;
+    cloudSyncStarted = true;
 
     console.log('Iniciando sincronización en la nube...');
 
@@ -1281,7 +1294,7 @@
     renderAll();
     applyThemeFromConfig();
     // Mostrar el botón de borrar solo en Jugadores al inicio
-    const activeSection = document.querySelector('.tab-section.is_active');
+    const activeSection = document.querySelector('.tab-section.is-active');
     if (appFooter) appFooter.style.display = activeSection && activeSection.id === 'tab-jugadores' ? 'flex' : 'none';
     
     // Inicializar Firebase si está habilitado

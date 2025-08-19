@@ -228,6 +228,6 @@ table.table th { color: var(--muted); font-weight: 500; }
 /* Modal */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 50; }
 .modal[hidden] { display: none; }
-.modal-content { width: min(520px, 92vw); background: rgba(23,26,42,0.98); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.modal-content { width: min(520px, 92vw); background: rgba(23,26,42,0.98); border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-height: 90vh; overflow-y: auto; }
 
 
