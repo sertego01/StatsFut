@@ -2453,8 +2453,8 @@
     });
   }
 
-
-
+  // Lógica automática para Local/Visitante
+  function setupLocationLogic() {
     // Obtener todos los bloques de jornada
     const journeyBlocks = document.querySelectorAll('.journey-block');
     
@@ -2462,9 +2462,8 @@
       const journeyNum = index + 1;
       const locationLocal = block.querySelector(`input[id="location-local-${journeyNum}"]`);
       const locationVisitante = block.querySelector(`input[id="location-visitante-${journeyNum}"]`);
-      const journeySelect = block.querySelector(`select[id="match-journey-${journeyNum}"]`);
       
-      if (locationLocal && locationVisitante && journeySelect) {
+      if (locationLocal && locationVisitante) {
         // Limpiar event listeners anteriores
         const newLocal = locationLocal.cloneNode(true);
         const newVisitante = locationVisitante.cloneNode(true);
@@ -2477,26 +2476,12 @@
           locationVisitante.parentNode.replaceChild(newVisitante, locationVisitante);
         }
         
-        // Función para verificar si la jornada actual es de liga (no amistoso)
-        const isLeagueJourney = () => {
-          const selectedJourney = journeySelect.value;
-          return selectedJourney && selectedJourney !== 'A';
-        };
-        
-        // Función para verificar si la jornada siguiente es de liga
-        const isNextLeagueJourney = () => {
-          const nextBlock = journeyBlocks[index + 1];
-          if (!nextBlock) return false;
-          const nextJourneySelect = nextBlock.querySelector(`select[id="match-journey-${journeyNum + 1}"]`);
-          return nextJourneySelect && nextJourneySelect.value && nextJourneySelect.value !== 'A';
-        };
-        
         // Añadir nuevos event listeners
         newLocal.addEventListener('change', () => {
-          if (newLocal.checked && isLeagueJourney()) {
-            // Solo aplicar lógica automática si es jornada de liga
+          if (newLocal.checked) {
+            // Si se selecciona Local en esta jornada, marcar Visitante en la siguiente
             const nextBlock = journeyBlocks[index + 1];
-            if (nextBlock && isNextLeagueJourney()) {
+            if (nextBlock) {
               const nextJourneyNum = journeyNum + 1;
               const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
               if (nextVisitante) {
@@ -2510,10 +2495,10 @@
         });
         
         newVisitante.addEventListener('change', () => {
-          if (newVisitante.checked && isLeagueJourney()) {
-            // Solo aplicar lógica automática si es jornada de liga
+          if (newVisitante.checked) {
+            // Si se selecciona Visitante en esta jornada, marcar Local en la siguiente
             const nextBlock = journeyBlocks[index + 1];
-            if (nextBlock && isNextLeagueJourney()) {
+            if (nextBlock) {
               const nextJourneyNum = journeyNum + 1;
               const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
               if (nextLocal) {
@@ -2523,20 +2508,6 @@
                 if (nextVisitante) nextVisitante.checked = false;
               }
             }
-          }
-        });
-        
-        // Añadir event listener al select de jornada para actualizar la lógica
-        journeySelect.addEventListener('change', () => {
-          // Si cambia a amistoso, liberar las restricciones de local/visitante
-          if (journeySelect.value === 'A') {
-            // Los partidos amistosos pueden ser local o visitante sin restricciones
-            newLocal.disabled = false;
-            newVisitante.disabled = false;
-          } else {
-            // Para jornadas de liga, mantener la lógica de alternancia
-            newLocal.disabled = false;
-            newVisitante.disabled = false;
           }
         });
       }
@@ -2845,7 +2816,8 @@
     // Cargar jornadas existentes si las hay
     loadExistingJourneys(rival);
     
-
+    // Configurar lógica automática de Local/Visitante
+    setupLocationLogic();
     
     // Limpiar todos los event listeners de botones de eliminar existentes
     clearDeleteButtonsListeners();
@@ -3207,7 +3179,8 @@
       // Renumerar los partidos restantes
       renumberPartidos();
       
-
+      // Reconfigurar la lógica de Local/Visitante
+      setupLocationLogic();
     }
   }
 
@@ -3362,7 +3335,8 @@
     // Insertar antes de los botones de acción
     modalActions.parentNode.insertBefore(newJourneyBlock, modalActions);
     
-
+    // Configurar la lógica automática de Local/Visitante para el nuevo bloque
+    setupLocationLogic();
     
     // Configurar el botón de eliminar para el nuevo bloque
     setupDeletePartidoButton(journeyNumber);
