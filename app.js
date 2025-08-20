@@ -2666,8 +2666,6 @@
           // Desmarcar el otro radio button
           newVisitante.checked = false;
           
-          // Lógica automática: marcar Visitante en la siguiente jornada
-          
         });
         
         newVisitante.addEventListener('click', () => {
@@ -2676,8 +2674,6 @@
           
           // Desmarcar el otro radio button
           newLocal.checked = false;
-          
-          // Lógica automática: marcar Local en la siguiente jornada
           
         });
         
