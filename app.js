@@ -362,6 +362,7 @@
   };
   let isApplyingCloudSnapshot = false;
   let cloudSyncStarted = false;
+  let initialSyncCompleted = false;
 
   // Configuración de Firebase por defecto (para nuevos usuarios)
   const DEFAULT_FIREBASE_CONFIG = {
@@ -482,6 +483,11 @@
       if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
+      // En la sincronización inicial, solo cargar datos si no hay datos locales
+      if (!initialSyncCompleted && sessions.length > 0) {
+        return;
+      }
+      
       const changes = snapshot.docChanges();
       changes.forEach((change) => {
         if (change.type === 'added' || change.type === 'modified') {
@@ -489,9 +495,20 @@
           const existingIndex = sessions.findIndex(s => s.id === sessionData.id);
           
           if (existingIndex >= 0) {
-            sessions[existingIndex] = { ...sessions[existingIndex], ...sessionData };
+            // Solo actualizar si hay cambios reales
+            const existing = sessions[existingIndex];
+            const hasChanges = JSON.stringify(existing) !== JSON.stringify(sessionData);
+            
+            if (hasChanges) {
+              sessions[existingIndex] = { ...existing, ...sessionData };
+            }
           } else {
-            sessions.push(sessionData);
+            // Verificar que no sea un duplicado por fecha
+            const isDuplicate = sessions.some(s => s.date === sessionData.date);
+            
+            if (!isDuplicate) {
+              sessions.push(sessionData);
+            }
           }
         } else if (change.type === 'removed') {
           const sessionId = change.doc.id;
@@ -516,6 +533,12 @@
       if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
+      // En la sincronización inicial, solo cargar datos si no hay datos locales
+      if (!initialSyncCompleted && matches.length > 0) {
+        initialSyncCompleted = true;
+        return;
+      }
+      
       const changes = snapshot.docChanges();
       changes.forEach((change) => {
         if (change.type === 'added' || change.type === 'modified') {
@@ -523,9 +546,26 @@
           const existingIndex = matches.findIndex(m => m.id === matchData.id);
           
           if (existingIndex >= 0) {
-            matches[existingIndex] = { ...matches[existingIndex], ...matchData };
+            // Solo actualizar si hay cambios reales
+            const existing = matches[existingIndex];
+            const hasChanges = JSON.stringify(existing) !== JSON.stringify(matchData);
+            
+            if (hasChanges) {
+              matches[existingIndex] = { ...existing, ...matchData };
+            }
           } else {
-            matches.push(matchData);
+            // Verificar que no sea un duplicado por otros campos
+            const isDuplicate = matches.some(m => 
+              m.playerId === matchData.playerId && 
+              m.date === matchData.date &&
+              m.goals === matchData.goals &&
+              m.assists === matchData.assists &&
+              m.minutes === matchData.minutes
+            );
+            
+            if (!isDuplicate) {
+              matches.push(matchData);
+            }
           }
         } else if (change.type === 'removed') {
           const matchId = change.doc.id;
@@ -537,12 +577,22 @@
       saveState();
       renderMatchStats();
       renderRecentMatchEntries();
+      
+      // Marcar sincronización inicial como completada
+      if (!initialSyncCompleted) {
+        initialSyncCompleted = true;
+      }
     });
 
     // Sincronizar rivales
     cloud.db.collection('rivals').onSnapshot((snapshot) => {
       if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
+      
+      // En la sincronización inicial, solo cargar datos si no hay datos locales
+      if (!initialSyncCompleted && rivals.length > 0) {
+        return;
+      }
       
       const changes = snapshot.docChanges();
       changes.forEach((change) => {
@@ -551,11 +601,20 @@
           const existingIndex = rivals.findIndex(r => r.id === rivalData.id);
           
           if (existingIndex >= 0) {
-            // Actualizar rival existente
-            rivals[existingIndex] = { ...rivals[existingIndex], ...rivalData };
+            // Solo actualizar si hay cambios reales
+            const existing = rivals[existingIndex];
+            const hasChanges = JSON.stringify(existing) !== JSON.stringify(rivalData);
+            
+            if (hasChanges) {
+              rivals[existingIndex] = { ...existing, ...rivalData };
+            }
           } else {
-            // Añadir nuevo rival
-            rivals.push(rivalData);
+            // Verificar que no sea un duplicado por nombre
+            const isDuplicate = rivals.some(r => r.name === rivalData.name);
+            
+            if (!isDuplicate) {
+              rivals.push(rivalData);
+            }
           }
         } else if (change.type === 'removed') {
           const rivalId = change.doc.id;
@@ -577,6 +636,11 @@
       if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
+      // En la sincronización inicial, solo cargar datos si no hay datos locales
+      if (!initialSyncCompleted && matchResults.length > 0) {
+        return;
+      }
+      
       const changes = snapshot.docChanges();
       changes.forEach((change) => {
         if (change.type === 'added' || change.type === 'modified') {
@@ -584,11 +648,23 @@
           const existingIndex = matchResults.findIndex(r => r.id === resultData.id);
           
           if (existingIndex >= 0) {
-            // Actualizar resultado existente
-            matchResults[existingIndex] = { ...matchResults[existingIndex], ...resultData };
+            // Solo actualizar si hay cambios reales
+            const existing = matchResults[existingIndex];
+            const hasChanges = JSON.stringify(existing) !== JSON.stringify(resultData);
+            
+            if (hasChanges) {
+              matchResults[existingIndex] = { ...existing, ...resultData };
+            }
           } else {
-            // Añadir nuevo resultado
-            matchResults.push(resultData);
+            // Verificar que no sea un duplicado por rival y jornada
+            const isDuplicate = matchResults.some(r => 
+              r.rivalId === resultData.rivalId && 
+              r.journey === resultData.journey
+            );
+            
+            if (!isDuplicate) {
+              matchResults.push(resultData);
+            }
           }
         } else if (change.type === 'removed') {
           const resultId = change.doc.id;
@@ -607,6 +683,11 @@
       if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
+      // En la sincronización inicial, solo cargar datos si no hay datos locales
+      if (!initialSyncCompleted && convocations.length > 0) {
+        return;
+      }
+      
       const changes = snapshot.docChanges();
       changes.forEach((change) => {
         if (change.type === 'added' || change.type === 'modified') {
@@ -614,11 +695,20 @@
           const existingIndex = convocations.findIndex(c => c.id === convocationData.id);
           
           if (existingIndex >= 0) {
-            // Actualizar convocatoria existente
-            convocations[existingIndex] = { ...convocations[existingIndex], ...convocationData };
+            // Solo actualizar si hay cambios reales
+            const existing = convocations[existingIndex];
+            const hasChanges = JSON.stringify(existing) !== JSON.stringify(convocationData);
+            
+            if (hasChanges) {
+              convocations[existingIndex] = { ...existing, ...convocationData };
+            }
           } else {
-            // Añadir nueva convocatoria
-            convocations.push(convocationData);
+            // Verificar que no sea un duplicado por fecha
+            const isDuplicate = convocations.some(c => c.date === convocationData.date);
+            
+            if (!isDuplicate) {
+              convocations.push(convocationData);
+            }
           }
         } else if (change.type === 'removed') {
           const convocationId = change.doc.id;
@@ -2513,6 +2603,78 @@
     }
   }
 
+  // Función para limpiar duplicados
+  function cleanDuplicates() {
+    // Limpiar duplicados de partidos
+    const uniqueMatches = [];
+    const seenMatches = new Set();
+    
+    matches.forEach(match => {
+      const key = `${match.playerId}-${match.date}-${match.goals}-${match.assists}-${match.minutes}`;
+      if (!seenMatches.has(key)) {
+        seenMatches.add(key);
+        uniqueMatches.push(match);
+      }
+    });
+    
+    if (uniqueMatches.length !== matches.length) {
+      matches = uniqueMatches;
+      console.log(`Duplicados de partidos limpiados: ${matches.length} → ${uniqueMatches.length}`);
+    }
+    
+    // Limpiar duplicados de sesiones
+    const uniqueSessions = [];
+    const seenSessions = new Set();
+    
+    sessions.forEach(session => {
+      if (!seenSessions.has(session.date)) {
+        seenSessions.add(session.date);
+        uniqueSessions.push(session);
+      }
+    });
+    
+    if (uniqueSessions.length !== sessions.length) {
+      sessions = uniqueSessions;
+      console.log(`Duplicados de sesiones limpiados: ${sessions.length} → ${uniqueSessions.length}`);
+    }
+    
+    // Limpiar duplicados de rivales
+    const uniqueRivals = [];
+    const seenRivals = new Set();
+    
+    rivals.forEach(rival => {
+      if (!seenRivals.has(rival.name)) {
+        seenRivals.add(rival.name);
+        uniqueRivals.push(rival);
+      }
+    });
+    
+    if (uniqueRivals.length !== rivals.length) {
+      rivals = uniqueRivals;
+      console.log(`Duplicados de rivales limpiados: ${rivals.length} → ${uniqueRivals.length}`);
+    }
+    
+    // Limpiar duplicados de resultados
+    const uniqueResults = [];
+    const seenResults = new Set();
+    
+    matchResults.forEach(result => {
+      const key = `${result.rivalId}-${result.journey}`;
+      if (!seenResults.has(key)) {
+        seenResults.add(key);
+        uniqueResults.push(result);
+      }
+    });
+    
+    if (uniqueResults.length !== matchResults.length) {
+      matchResults = uniqueResults;
+      console.log(`Duplicados de resultados limpiados: ${matchResults.length} → ${uniqueResults.length}`);
+    }
+    
+    // Guardar estado limpio
+    saveState();
+  }
+
   // Función para eliminar jugador
   async function deletePlayer(playerId) {
     // Eliminar de la lista local
@@ -3368,6 +3530,9 @@
     // Cargar configuración (mantener tema, Firebase, etc.)
     loadConfig();
     loadCloudConfig();
+    
+    // Limpiar duplicados existentes
+    cleanDuplicates();
     
     // Para nuevos usuarios, activar automáticamente la sincronización
     const isFirstTime = !localStorage.getItem(STORAGE_KEYS_CLOUD.cloudEnabled);
