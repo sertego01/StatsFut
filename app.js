@@ -1173,7 +1173,13 @@
       group.className = 'radio-group';
       const name = `att_${p.id}`;
       const current = attendanceStatuses[p.id] || 'A';
-      ['A','F','FJ','T'].forEach(code => {
+      
+             // Crear layout 2x2: Primera fila (A, T)
+       // A = Asistió, T = Tardanza
+       const firstRow = document.createElement('div');
+       firstRow.className = 'radio-row';
+      
+      ['A', 'T'].forEach(code => {
         const wrap = document.createElement('div');
         wrap.className = 'radio';
         const input = document.createElement('input');
@@ -1189,8 +1195,36 @@
         label.textContent = code;
         wrap.appendChild(input);
         wrap.appendChild(label);
-        group.appendChild(wrap);
+        firstRow.appendChild(wrap);
       });
+      
+             // Crear layout 2x2: Segunda fila (F, FJ)
+       // F = Falta, FJ = Falta Justificada
+       const secondRow = document.createElement('div');
+       secondRow.className = 'radio-row';
+      
+      ['F', 'FJ'].forEach(code => {
+        const wrap = document.createElement('div');
+        wrap.className = 'radio';
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = name;
+        input.value = code;
+        input.dataset.playerId = p.id;
+        input.checked = current === code;
+        const rid = `att_${p.id}_${code}`;
+        input.id = rid;
+        const label = document.createElement('label');
+        label.setAttribute('for', rid);
+        label.textContent = code;
+        wrap.appendChild(input);
+        wrap.appendChild(label);
+        secondRow.appendChild(wrap);
+      });
+      
+      // Añadir ambas filas al grupo
+      group.appendChild(firstRow);
+      group.appendChild(secondRow);
       li.appendChild(nameDiv);
       right.appendChild(group);
       li.appendChild(right);
@@ -1260,15 +1294,15 @@
       tdName.appendChild(nameBtn);
       const tdTotal = document.createElement('td'); tdTotal.textContent = String(r.total);
       const tdA = document.createElement('td'); tdA.textContent = String(r.A);
+      const tdT = document.createElement('td'); tdT.textContent = String(r.T);
       const tdF = document.createElement('td'); tdF.textContent = String(r.F);
       const tdFJ = document.createElement('td'); tdFJ.textContent = String(r.FJ);
-      const tdT = document.createElement('td'); tdT.textContent = String(r.T);
       tr.appendChild(tdName);
       tr.appendChild(tdTotal);
       tr.appendChild(tdA);
+      tr.appendChild(tdT);
       tr.appendChild(tdF);
       tr.appendChild(tdFJ);
-      tr.appendChild(tdT);
       statsTbody.appendChild(tr);
     });
   }
@@ -1451,32 +1485,33 @@
       const group = document.createElement('div');
       group.className = 'radio-group radio-cn';
       
-      const name = `conv_${p.id}`;
-      const current = convocationStatuses[p.id] || 'C';
-      
-      ['C', 'NC'].forEach(code => {
-        const wrap = document.createElement('div');
-        wrap.className = 'radio';
-        const input = document.createElement('input');
-        input.type = 'radio';
-        input.name = name;
-        input.value = code;
-        input.dataset.playerId = p.id;
-        input.checked = current === code;
-        const rid = `conv_${p.id}_${code}`;
-        input.id = rid;
-        const label = document.createElement('label');
-        label.setAttribute('for', rid);
-        label.textContent = code;
-        
-        // No deshabilitar en tiempo real, permitir que el usuario haga cambios
-        
-        wrap.appendChild(input);
-        wrap.appendChild(label);
-        group.appendChild(wrap);
-        
-        // No re-renderizar en tiempo real para evitar perder cambios del usuario
-      });
+             const name = `conv_${p.id}`;
+       const current = convocationStatuses[p.id] || 'C';
+       
+       // Layout horizontal para convocatorias (C, NC)
+       ['C', 'NC'].forEach(code => {
+         const wrap = document.createElement('div');
+         wrap.className = 'radio';
+         const input = document.createElement('input');
+         input.type = 'radio';
+         input.name = name;
+         input.value = code;
+         input.dataset.playerId = p.id;
+         input.checked = current === code;
+         const rid = `conv_${p.id}_${code}`;
+         input.id = rid;
+         const label = document.createElement('label');
+         label.setAttribute('for', rid);
+         label.textContent = code;
+         
+         // No deshabilitar en tiempo real, permitir que el usuario haga cambios
+         
+         wrap.appendChild(input);
+         wrap.appendChild(label);
+         group.appendChild(wrap);
+         
+         // No re-renderizar en tiempo real para evitar perder cambios del usuario
+       });
       
       li.appendChild(nameDiv);
       right.appendChild(group);
@@ -2636,6 +2671,179 @@
         
         .radio-group .radio:hover {
           background-color: var(--panel);
+        }
+        
+        /* Layout 2x2 para radio buttons de asistencia */
+        .radio-group .radio-row {
+          display: flex;
+          justify-content: center;
+          gap: 16px;
+          margin-bottom: 8px;
+        }
+        
+        .radio-group .radio-row:last-child {
+          margin-bottom: 0;
+        }
+        
+        .radio-group .radio {
+          flex: 1;
+          max-width: 80px;
+          text-align: center;
+        }
+        
+        /* Estilos específicos para asistencia de entrenamientos */
+        #attendance-list .radio-group {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          width: 100%;
+          padding: 8px 0;
+        }
+        
+        #attendance-list .radio-group .radio-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          padding: 4px 0;
+        }
+        
+        #attendance-list .radio-group .radio {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 12px 8px;
+          border-radius: 8px;
+          transition: all 0.2s ease;
+          border: 1px solid transparent;
+          background-color: var(--panel);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        #attendance-list .radio-group .radio:hover {
+          background-color: var(--border);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        #attendance-list .radio-group .radio input[type="radio"] {
+          margin-bottom: 8px;
+          transform: scale(1.2);
+        }
+        
+        #attendance-list .radio-group .radio label {
+          font-size: 0.95em;
+          font-weight: 600;
+          cursor: pointer;
+          user-select: none;
+          -webkit-user-select: none;
+          color: var(--text);
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Estilos específicos para convocatorias */
+        .radio-group.radio-cn {
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          gap: 24px;
+          width: 100%;
+          padding: 8px 0;
+        }
+        
+        .radio-group.radio-cn .radio {
+          flex: 1;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px 16px;
+          border-radius: 8px;
+          transition: all 0.2s ease;
+          border: 1px solid transparent;
+          background-color: var(--panel);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .radio-group.radio-cn .radio:hover {
+          background-color: var(--border);
+          border-color: var(--primary);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .radio-group.radio-cn .radio input[type="radio"] {
+          margin: 0;
+          transform: scale(1.2);
+        }
+        
+        .radio-group.radio-cn .radio label {
+          margin: 0;
+          font-weight: 600;
+          font-size: 0.95em;
+          cursor: pointer;
+          color: var(--text);
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Mejorar la apariencia general de la lista de asistencia */
+        #attendance-list .checklist-item {
+          padding: 16px 0;
+          border-bottom: 1px solid var(--border);
+          transition: background-color 0.2s ease;
+        }
+        
+        #attendance-list .checklist-item:hover {
+          background-color: var(--panel);
+          border-radius: 8px;
+          padding-left: 8px;
+          padding-right: 8px;
+        }
+        
+        #attendance-list .checklist-item:last-child {
+          border-bottom: none;
+        }
+        
+        /* Mejorar el header de la lista de asistencia */
+        #attendance-list .checklist-item:first-child {
+          background-color: var(--panel);
+          border-radius: 8px;
+          padding: 12px 16px;
+          margin-bottom: 16px;
+          border: 1px solid var(--border);
+        }
+        
+        #attendance-list .checklist-item:first-child .row-actions {
+          gap: 12px;
+        }
+        
+        #attendance-list .checklist-item:first-child .btn {
+          padding: 8px 16px;
+          font-weight: 500;
+        }
+        
+        /* Mejorar los botones de acción */
+        #attendance-list .row-actions .btn {
+          padding: 6px 12px;
+          font-size: 0.9em;
+          border-radius: 6px;
+          transition: all 0.2s ease;
+          border: 1px solid transparent;
+        }
+        
+        #attendance-list .row-actions .btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Estilos para el nombre del jugador */
+        #attendance-list .checklist-item > div:first-child {
+          font-weight: 500;
+          font-size: 1em;
+          color: var(--text);
+          padding: 4px 0;
         }
       `;
       document.head.appendChild(style);
