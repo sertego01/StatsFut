@@ -2001,11 +2001,31 @@
         return;
       }
       
+      // Validar minutos (no puede exceder la configuración)
+      const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
+      const maxMinutes = config.matchMinutes || 80;
+      
+      if (minutes > maxMinutes) {
+        alert(`Los minutos no pueden exceder ${maxMinutes} (configuración actual). Por favor, ajusta los minutos o cambia la configuración.`);
+        inputMatchMinutes.focus();
+        return;
+      }
+      
       // Verificar si ya existen datos para este jugador en esta fecha
       const existingEntry = findMatchEntryByPlayerAndDate(playerId, date);
       if (existingEntry) {
         const confirmed = confirm(`Ya existen datos para ${getPlayerName(playerId)} en la fecha ${formatDateHuman(date)}. ¿Deseas sobrescribirlos?`);
         if (!confirmed) return;
+        
+        // Validar minutos antes de actualizar
+        const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
+        const maxMinutes = config.matchMinutes || 80;
+        
+        if (minutes > maxMinutes) {
+          alert(`Los minutos no pueden exceder ${maxMinutes} (configuración actual). Por favor, ajusta los minutos o cambia la configuración.`);
+          inputMatchMinutes.focus();
+          return;
+        }
         
         // Actualizar entrada existente
         existingEntry.goals = Math.max(0, parseInt(inputMatchGoals.value, 10) || 0);
@@ -2146,6 +2166,40 @@
   if (inputMatchDate) {
     inputMatchDate.addEventListener('change', () => {
       renderMatchPlayerForm();
+    });
+  }
+  
+  // Event listener para validar minutos en tiempo real
+  if (inputMatchMinutes) {
+    inputMatchMinutes.addEventListener('input', () => {
+      const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
+      const maxMinutes = config.matchMinutes || 80;
+      
+      if (minutes > maxMinutes) {
+        inputMatchMinutes.style.borderColor = '#ef4444';
+        inputMatchMinutes.style.backgroundColor = '#fef2f2';
+        
+        // Mostrar mensaje de error debajo del campo
+        let errorMsg = inputMatchMinutes.parentNode.querySelector('.minutes-error');
+        if (!errorMsg) {
+          errorMsg = document.createElement('div');
+          errorMsg.className = 'minutes-error';
+          errorMsg.style.color = '#ef4444';
+          errorMsg.style.fontSize = '0.8em';
+          errorMsg.style.marginTop = '4px';
+          inputMatchMinutes.parentNode.appendChild(errorMsg);
+        }
+        errorMsg.textContent = `Máximo ${maxMinutes} minutos permitidos`;
+      } else {
+        inputMatchMinutes.style.borderColor = '';
+        inputMatchMinutes.style.backgroundColor = '';
+        
+        // Eliminar mensaje de error
+        const errorMsg = inputMatchMinutes.parentNode.querySelector('.minutes-error');
+        if (errorMsg) {
+          errorMsg.remove();
+        }
+      }
     });
   }
 
@@ -2359,38 +2413,48 @@
         return;
       }
       
-      if (confirm(`¿Estás seguro de que quieres eliminar el equipo "${rival.name}"? Esta acción también eliminará todos los resultados asociados y no se puede deshacer.`)) {
-        // Eliminar rival
-        rivals = rivals.filter(r => r.id !== rival.id);
-        
-        // Eliminar todos los resultados asociados
-        matchResults = matchResults.filter(r => r.rivalId !== rival.id);
-        
-        // Guardar cambios
-        saveState();
-        
-        // Sincronizar eliminación con Firebase si está disponible
-        if (cloud.enabled && cloud.db && isAuthenticated) {
-          try {
-            // Eliminar rival de Firebase
-            await cloud.db.collection('rivals').doc(rival.id).delete();
-            
-            // Eliminar resultados asociados de Firebase
-            const resultsToDelete = matchResults.filter(r => r.rivalId === rival.id);
-            for (const result of resultsToDelete) {
-              await cloud.db.collection('matchResults').doc(result.id).delete();
+      if (confirm(`¿Estás seguro de que quieres eliminar el equipo "${rival.name}"? Esta acción también eliminará todos los partidos asociados y no se puede deshacer.`)) {
+        try {
+          // Obtener todos los resultados asociados ANTES de eliminarlos
+          const resultsToDelete = matchResults.filter(r => r.rivalId === rival.id);
+          const totalResults = resultsToDelete.length;
+          
+          // Sincronizar eliminación con Firebase si está disponible
+          if (cloud.enabled && cloud.db && isAuthenticated) {
+            try {
+              // Eliminar rival de Firebase
+              await cloud.db.collection('rivals').doc(rival.id).delete();
+              
+              // Eliminar resultados asociados de Firebase
+              for (const result of resultsToDelete) {
+                await cloud.db.collection('matchResults').doc(result.id).delete();
+              }
+            } catch (error) {
+              console.error('Error eliminando rival de Firebase:', error);
+              alert(`Error al eliminar de la nube: ${error.message}. Los datos locales se han eliminado.`);
             }
-          } catch (error) {
-            console.error('Error eliminando rival de Firebase:', error);
           }
+          
+          // Eliminar rival de la lista local
+          rivals = rivals.filter(r => r.id !== rival.id);
+          
+          // Eliminar todos los resultados asociados de la lista local
+          matchResults = matchResults.filter(r => r.rivalId !== rival.id);
+          
+          // Guardar cambios en localStorage
+          saveState();
+          
+          // Cerrar modal
+          document.getElementById('rival-result-modal').hidden = true;
+          
+          // Renderizar listas actualizadas
+          renderRivalsList();
+          renderCalendar();
+          
+        } catch (error) {
+          console.error('Error durante la eliminación del rival:', error);
+          alert(`Error durante la eliminación: ${error.message}`);
         }
-        
-        // Cerrar modal
-        document.getElementById('rival-result-modal').hidden = true;
-        
-        // Renderizar listas actualizadas
-        renderRivalsList();
-        renderCalendar();
       }
     });
   }
@@ -2528,6 +2592,71 @@
         .radio-group .radio:hover {
           background-color: var(--panel);
         }
+        
+        /* FORZAR LAYOUT EN UNA LÍNEA PARA iOS */
+        .radio-group {
+          display: flex !important;
+          flex-direction: row !important;
+          flex-wrap: nowrap !important;
+          justify-content: flex-start !important;
+          align-items: center !important;
+          gap: 8px !important;
+          width: 100% !important;
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+        }
+        
+        .radio-group .radio {
+          flex-shrink: 0 !important;
+          min-width: auto !important;
+          white-space: nowrap !important;
+        }
+        
+        /* Asegurar que los radio buttons estén en la misma línea */
+        .radio-group input[type="radio"] + label {
+          display: inline-block !important;
+          white-space: nowrap !important;
+        }
+        
+        /* Estilos específicos para asistencia de entrenamientos */
+        #attendance-list .radio-group {
+          max-width: 100% !important;
+          overflow-x: auto !important;
+          padding: 4px 0 !important;
+        }
+        
+        #attendance-list .radio-group .radio {
+          margin: 0 2px !important;
+          padding: 2px 4px !important;
+        }
+        
+        /* Mejorar layout de la lista de asistencia */
+        #attendance-list .checklist-item {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          padding: 8px 0 !important;
+          border-bottom: 1px solid var(--border) !important;
+        }
+        
+        #attendance-list .checklist-item > div:first-child {
+          flex: 1 !important;
+          min-width: 0 !important;
+          margin-right: 16px !important;
+        }
+        
+        #attendance-list .checklist-item .row-actions {
+          flex-shrink: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+        }
+        
+        /* Asegurar que los radio buttons no se rompan en múltiples líneas */
+        .radio-group {
+          min-height: 40px !important;
+          align-items: center !important;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -2548,13 +2677,6 @@
         const newLocal = locationLocal.cloneNode(true);
         const newVisitante = locationVisitante.cloneNode(true);
         
-        // Reemplazar los elementos
-        if (locationLocal.parentNode) {
-          locationLocal.parentNode.replaceChild(newLocal, locationLocal);
-        }
-        if (locationVisitante.parentNode) {
-          locationVisitante.parentNode.replaceChild(newVisitante, locationVisitante);
-        }
         
         // Añadir nuevos event listeners (compatibles con iOS)
         newLocal.addEventListener('click', () => {
@@ -2565,19 +2687,7 @@
           newVisitante.checked = false;
           
           // Lógica automática: marcar Visitante en la siguiente jornada
-          setTimeout(() => {
-            const nextBlock = journeyBlocks[index + 1];
-            if (nextBlock) {
-              const nextJourneyNum = journeyNum + 1;
-              const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
-              const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
-              
-              if (nextVisitante && nextLocal) {
-                nextVisitante.checked = true;
-                nextLocal.checked = false;
-              }
-            }
-          }, 100);
+          
         });
         
         newVisitante.addEventListener('click', () => {
@@ -2588,20 +2698,19 @@
           newLocal.checked = false;
           
           // Lógica automática: marcar Local en la siguiente jornada
-          setTimeout(() => {
-            const nextBlock = journeyBlocks[index + 1];
-            if (nextBlock) {
-              const nextJourneyNum = journeyNum + 1;
-              const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
-              const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
-              
-              if (nextLocal && nextVisitante) {
-                nextLocal.checked = true;
-                nextVisitante.checked = false;
-              }
-            }
-          }, 100);
+          
         });
+        
+        // Establecer valores por defecto si no están marcados
+        if (!newLocal.checked && !newVisitante.checked) {
+          if (journeyNum % 2 === 1) {
+            newLocal.checked = true;
+            newVisitante.checked = false;
+          } else {
+            newLocal.checked = false;
+            newVisitante.checked = true;
+          }
+        }
       }
     });
   }
@@ -2676,6 +2785,59 @@
       } catch (error) {
         console.error('Error eliminando resultado de Firebase:', error);
       }
+    }
+  }
+
+  // Función para eliminar rival y todos sus partidos asociados
+  async function deleteRivalAndMatches(rivalId) {
+    try {
+      const rival = rivals.find(r => r.id === rivalId);
+      if (!rival) {
+        throw new Error('Rival no encontrado');
+      }
+      
+      // Obtener todos los partidos asociados
+      const matchesToDelete = matchResults.filter(r => r.rivalId === rivalId);
+      const totalMatches = matchesToDelete.length;
+      
+      // Eliminar de Firebase si está disponible
+      if (cloud.enabled && cloud.db && isAuthenticated) {
+        try {
+          // Eliminar rival de Firebase
+          await cloud.db.collection('rivals').doc(rivalId).delete();
+          
+          // Eliminar partidos asociados de Firebase
+          for (const match of matchesToDelete) {
+            await cloud.db.collection('matchResults').doc(match.id).delete();
+          }
+        } catch (error) {
+          console.error('Error eliminando rival de Firebase:', error);
+          throw new Error(`Error al eliminar de la nube: ${error.message}`);
+        }
+      }
+      
+      // Eliminar de las listas locales
+      rivals = rivals.filter(r => r.id !== rivalId);
+      matchResults = matchResults.filter(r => r.rivalId !== rivalId);
+      
+      // Guardar cambios
+      saveState();
+      
+      return {
+        success: true,
+        rivalName: rival.name,
+        totalMatches,
+        message: totalMatches > 0 
+          ? `Equipo "${rival.name}" eliminado junto con ${totalMatches} partido${totalMatches > 1 ? 's' : ''} asociado${totalMatches > 1 ? 's' : ''}.`
+          : `Equipo "${rival.name}" eliminado correctamente.`
+      };
+      
+    } catch (error) {
+      console.error('Error eliminando rival:', error);
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
@@ -3134,6 +3296,76 @@
     });
   }
 
+  // Función para configurar event listeners específicos de un nuevo bloque
+  function setupNewBlockEventListeners(journeyBlock, journeyNumber) {
+    const locationLocal = journeyBlock.querySelector(`input[id="location-local-${journeyNumber}"]`);
+    const locationVisitante = journeyBlock.querySelector(`input[id="location-visitante-${journeyNumber}"]`);
+    
+    if (!locationLocal || !locationVisitante) {
+      console.warn(`No se encontraron radio buttons para jornada ${journeyNumber}`);
+      return;
+    }
+    
+    console.log(`Configurando event listeners para jornada ${journeyNumber}`);
+    
+    // Event listener para Local
+    locationLocal.addEventListener('click', () => {
+      // Forzar el estado checked inmediatamente para iOS
+      locationLocal.checked = true;
+      
+      // Desmarcar el otro radio button
+      locationVisitante.checked = false;
+      
+      // Lógica automática: marcar Visitante en la siguiente jornada
+      setTimeout(() => {
+        const nextBlock = journeyBlock.nextElementSibling;
+        if (nextBlock && nextBlock.classList.contains('journey-block')) {
+          const nextJourneyNum = journeyNumber + 1;
+          const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
+          const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
+          
+          if (nextVisitante && nextLocal) {
+            nextVisitante.checked = true;
+            nextLocal.checked = false;
+          }
+        }
+      }, 100);
+    });
+    
+    // Event listener para Visitante
+    locationVisitante.addEventListener('click', () => {
+      // Forzar el estado checked inmediatamente para iOS
+      locationVisitante.checked = true;
+      
+      // Desmarcar el otro radio button
+      locationLocal.checked = false;
+      
+      // Lógica automática: marcar Local en la siguiente jornada
+      setTimeout(() => {
+        const nextBlock = journeyBlock.nextElementSibling;
+        if (nextBlock && nextBlock.classList.contains('journey-block')) {
+          const nextJourneyNum = journeyNumber + 1;
+          const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
+          const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
+          
+          if (nextLocal && nextVisitante) {
+            nextLocal.checked = true;
+            nextVisitante.checked = false;
+          }
+        }
+      }, 100);
+    });
+    
+    // Establecer valor por defecto (Local para jornadas impares, Visitante para pares)
+    if (journeyNumber % 2 === 1) {
+      locationLocal.checked = true;
+      locationVisitante.checked = false;
+    } else {
+      locationLocal.checked = false;
+      locationVisitante.checked = true;
+    }
+  }
+
   // Función para configurar validación de jornadas duplicadas
   function setupJourneyValidation(journeyBlock) {
     const journeySelect = journeyBlock.querySelector('select[id^="match-journey-"]');
@@ -3329,9 +3561,13 @@
         // Configurar el nuevo botón
         setupDeletePartidoButton(newNumber);
       }
+      
+      // Reconfigurar event listeners de Local/Visitante
+      setupNewBlockEventListeners(block, newNumber);
     });
     
-
+    // Reconfigurar la lógica automática de Local/Visitante
+    setupLocationLogic();
   }
 
   // Función para añadir nuevo bloque de jornada
@@ -3401,7 +3637,7 @@
             </div>
             <div class="radio">
               <input type="radio" id="location-visitante-${journeyNumber}" name="match-location-${journeyNumber}" value="visitante" />
-              <label for="location-local-${journeyNumber}">Visitante</label>
+              <label for="location-visitante-${journeyNumber}">Visitante</label>
             </div>
           </div>
         </label>
@@ -3435,6 +3671,9 @@
     
     // Configurar validación de jornadas duplicadas en tiempo real
     setupJourneyValidation(newJourneyBlock);
+    
+    // Configurar event listeners específicos para este nuevo bloque
+    setupNewBlockEventListeners(newJourneyBlock, journeyNumber);
   }
 
   // Función para buscar entrada de partido por jugador y fecha
