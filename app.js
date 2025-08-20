@@ -202,17 +202,27 @@
     saveState();
   }
 
-  function addConvocation(convocation) {
+  async function addConvocation(convocation) {
+    // Añadir a la lista local
     convocations.push(convocation);
     convocations.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     saveState();
+    
+    // Sincronizar con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('convocations').doc(convocation.id).set(convocation);
+      } catch (error) {
+        console.error('Error sincronizando convocatoria con Firebase:', error);
+      }
+    }
   }
 
   function findConvocationByDate(dateStr) {
     return convocations.find(c => c.date === dateStr) || null;
   }
 
-  function upsertConvocation(newConvocation) {
+  async function upsertConvocation(newConvocation) {
     const idx = convocations.findIndex(c => c.date === newConvocation.date);
     if (idx >= 0) {
       // Mantener el ID original si es una edición
@@ -224,6 +234,15 @@
     }
     convocations.sort((a, b) => (a.date).localeCompare(b.date));
     saveState();
+    
+    // Sincronizar con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('convocations').doc(newConvocation.id).set(newConvocation);
+      } catch (error) {
+        console.error('Error sincronizando convocatoria con Firebase:', error);
+      }
+    }
   }
 
   function computeMatchStats() {
@@ -520,6 +539,102 @@
       renderRecentMatchEntries();
     });
 
+    // Sincronizar rivales
+    cloud.db.collection('rivals').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
+      if (isApplyingCloudSnapshot) return;
+      
+      const changes = snapshot.docChanges();
+      changes.forEach((change) => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const rivalData = change.doc.data();
+          const existingIndex = rivals.findIndex(r => r.id === rivalData.id);
+          
+          if (existingIndex >= 0) {
+            // Actualizar rival existente
+            rivals[existingIndex] = { ...rivals[existingIndex], ...rivalData };
+          } else {
+            // Añadir nuevo rival
+            rivals.push(rivalData);
+          }
+        } else if (change.type === 'removed') {
+          const rivalId = change.doc.id;
+          rivals = rivals.filter(r => r.id !== rivalId);
+        }
+      });
+      
+      // Ordenar por nombre y guardar
+      rivals.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+      saveState();
+      
+      // Refrescar UI
+      renderRivalsList();
+      renderCalendar();
+    });
+
+    // Sincronizar resultados de partidos (para el calendario)
+    cloud.db.collection('matchResults').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
+      if (isApplyingCloudSnapshot) return;
+      
+      const changes = snapshot.docChanges();
+      changes.forEach((change) => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const resultData = change.doc.data();
+          const existingIndex = matchResults.findIndex(r => r.id === resultData.id);
+          
+          if (existingIndex >= 0) {
+            // Actualizar resultado existente
+            matchResults[existingIndex] = { ...matchResults[existingIndex], ...resultData };
+          } else {
+            // Añadir nuevo resultado
+            matchResults.push(resultData);
+          }
+        } else if (change.type === 'removed') {
+          const resultId = change.doc.id;
+          matchResults = matchResults.filter(r => r.id !== resultId);
+        }
+      });
+      
+      // Guardar y refrescar UI
+      saveState();
+      renderCalendar();
+      renderRivalsList(); // Para actualizar las jornadas mostradas en cada rival
+    });
+
+    // Sincronizar convocatorias
+    cloud.db.collection('convocations').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
+      if (isApplyingCloudSnapshot) return;
+      
+      const changes = snapshot.docChanges();
+      changes.forEach((change) => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const convocationData = change.doc.data();
+          const existingIndex = convocations.findIndex(c => c.id === convocationData.id);
+          
+          if (existingIndex >= 0) {
+            // Actualizar convocatoria existente
+            convocations[existingIndex] = { ...convocations[existingIndex], ...convocationData };
+          } else {
+            // Añadir nueva convocatoria
+            convocations.push(convocationData);
+          }
+        } else if (change.type === 'removed') {
+          const convocationId = change.doc.id;
+          convocations = convocations.filter(c => c.id !== convocationId);
+        }
+      });
+      
+      // Ordenar por fecha y guardar
+      convocations.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      saveState();
+      
+      // Refrescar UI
+      renderConvocationList();
+      renderRecentConvocations();
+      renderStats(); // Para actualizar estadísticas de convocatorias
+    });
 
   }
 
@@ -2145,7 +2260,7 @@
   // Event listener para eliminar rival
   const btnDeleteRival = document.getElementById('delete-rival-btn');
   if (btnDeleteRival) {
-    btnDeleteRival.addEventListener('click', () => {
+    btnDeleteRival.addEventListener('click', async () => {
       const rivalName = document.getElementById('rival-name-display').textContent;
       const rival = rivals.find(r => r.name === rivalName);
       
@@ -2163,6 +2278,22 @@
         
         // Guardar cambios
         saveState();
+        
+        // Sincronizar eliminación con Firebase si está disponible
+        if (cloud.enabled && cloud.db && isAuthenticated) {
+          try {
+            // Eliminar rival de Firebase
+            await cloud.db.collection('rivals').doc(rival.id).delete();
+            
+            // Eliminar resultados asociados de Firebase
+            const resultsToDelete = matchResults.filter(r => r.rivalId === rival.id);
+            for (const result of resultsToDelete) {
+              await cloud.db.collection('matchResults').doc(result.id).delete();
+            }
+          } catch (error) {
+            console.error('Error eliminando rival de Firebase:', error);
+          }
+        }
         
         // Cerrar modal
         document.getElementById('rival-result-modal').hidden = true;
@@ -2316,18 +2447,121 @@
   let matchResults = [];
 
   // Función para añadir rival
-  function addRival(rival) {
+  async function addRival(rival) {
+    // Añadir a la lista local
     rivals.push(rival);
     rivals.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     saveState();
+    
+    // Sincronizar con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('rivals').doc(rival.id).set(rival);
+      } catch (error) {
+        console.error('Error sincronizando rival con Firebase:', error);
+      }
+    }
   }
 
   // Función para añadir resultado de partido
-  function addMatchResult(result) {
+  async function addMatchResult(result) {
+    // Añadir a la lista local
     matchResults.push(result);
     // IMPORTANTE: No ordenar por fecha para mantener el orden de jornadas preestablecido
     // Las jornadas se mantienen en el orden que el usuario marca en el formulario
     saveState();
+    
+    // Sincronizar con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('matchResults').doc(result.id).set(result);
+      } catch (error) {
+        console.error('Error sincronizando resultado con Firebase:', error);
+      }
+    }
+  }
+
+  // Función para eliminar resultado de partido
+  async function deleteMatchResult(resultId) {
+    // Eliminar de la lista local
+    matchResults = matchResults.filter(r => r.id !== resultId);
+    saveState();
+    
+    // Sincronización eliminación con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('matchResults').doc(resultId).delete();
+      } catch (error) {
+        console.error('Error eliminando resultado de Firebase:', error);
+      }
+    }
+  }
+
+  // Función para eliminar convocatoria
+  async function deleteConvocation(convocationId) {
+    // Eliminar de la lista local
+    convocations = convocations.filter(c => c.id !== convocationId);
+    saveState();
+    
+    // Sincronizar eliminación con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('convocations').doc(convocationId).delete();
+      } catch (error) {
+        console.error('Error eliminando convocatoria de Firebase:', error);
+      }
+    }
+  }
+
+  // Función para eliminar jugador
+  async function deletePlayer(playerId) {
+    // Eliminar de la lista local
+    players = players.filter(p => p.id !== playerId);
+    
+    // Eliminar de todas las sesiones
+    sessions.forEach(session => {
+      if (session.attendance && session.attendance[playerId]) {
+        delete session.attendance[playerId];
+      }
+    });
+    
+    // Eliminar de todas las convocatorias
+    convocations.forEach(convocation => {
+      if (convocation.players && convocation.players[playerId]) {
+        delete convocation.players[playerId];
+      }
+    });
+    
+    // Eliminar de todos los partidos
+    matches = matches.filter(m => m.playerId !== playerId);
+    
+    saveState();
+    
+    // Sincronizar eliminación con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        // Eliminar jugador
+        await cloud.db.collection('players').doc(playerId).delete();
+        
+        // Actualizar sesiones
+        for (const session of sessions) {
+          await cloud.db.collection('sessions').doc(session.id).set(session);
+        }
+        
+        // Actualizar convocatorias
+        for (const convocation of convocations) {
+          await cloud.db.collection('convocations').doc(convocation.id).set(convocation);
+        }
+        
+        // Eliminar partidos del jugador
+        const playerMatches = matches.filter(m => m.playerId === playerId);
+        for (const match of playerMatches) {
+          await cloud.db.collection('matchEntries').doc(match.id).delete();
+        }
+      } catch (error) {
+        console.error('Error eliminando jugador de Firebase:', error);
+      }
+    }
   }
 
   // Función para renderizar lista de rivales
