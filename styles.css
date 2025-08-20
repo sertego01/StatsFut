@@ -184,15 +184,6 @@ input[type="checkbox"]:checked::after {
 
 .checklist li { gap: 12px; }
 
-.checklist-item-name {
-  font-weight: 600;
-  color: var(--text);
-  width: 50%;
-}
-
-.radio-group-attendance {
-  width: 50%;
-}
 
 .btn {
   padding: 10px 14px;
