@@ -170,7 +170,7 @@
         </div>
 
         <div class="card">
-          <h3>Registros recientes</h3>
+          <h3>Partidos recientes</h3>
           <ul id="recent-match-entries" class="list"></ul>
         </div>
 
@@ -203,15 +203,9 @@
           </div>
         </div>
 
-        <div class="card" id="recent-match-entries-card">
-          <h3>Registros recientes</h3>
-          <ul id="recent-match-entries" class="list"></ul>
-        </div>
 
-        <div class="card" id="recent-convocations-card">
-          <h3>Convocatorias recientes</h3>
-          <ul id="recent-convocations" class="list"></ul>
-        </div>
+
+
       </section>
 
       <section id="tab-rivales" class="tab-section">
@@ -327,13 +321,14 @@
 
     <div id="rival-result-modal" class="modal" hidden>
       <div class="modal-content">
-        <h3>Gestionar partidos del rival</h3>
-        <form id="form-rival-result" class="form-grid">
-          <div class="rival-info">
-            <img id="rival-shield-display" src="" alt="Escudo del rival" style="width: 50px; height: 50px; object-fit: contain;">
-            <h4 id="rival-name-display"></h4>
-            <p id="rival-field-display"></p>
-          </div>
+                  <form id="form-rival-result" class="form-grid">
+            <div class="rival-header">
+              <img id="rival-shield-display" src="" alt="Escudo del rival">
+              <div class="rival-details">
+                <h4 id="rival-name-display"></h4>
+                <p id="rival-field-display"></p>
+              </div>
+            </div>
           
           <!-- Primer partido -->
           <div class="journey-block">

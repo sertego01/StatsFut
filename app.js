@@ -650,6 +650,21 @@
       btnSettings.style.display = isAuthenticated ? '' : 'none';
     }
     
+          // Ocultar cards de sesiones cuando no hay sesión iniciada
+      const trainingCards = document.querySelectorAll('#tab-entrenamientos .card');
+      trainingCards.forEach(card => {
+        // Ocultar todas las cards excepto las que contengan estadísticas
+        if (!card.querySelector('.stats-table') && !card.querySelector('#stats-card')) {
+          card.style.display = isAuthenticated ? '' : 'none';
+        }
+      });
+      
+      // Ocultar específicamente la card de sesiones recientes cuando no hay sesión
+      const recentSessionsCard = document.querySelector('#recent-sessions-card');
+      if (recentSessionsCard) {
+        recentSessionsCard.style.display = isAuthenticated ? '' : 'none';
+      }
+    
     // Ajustar layout del footer según autenticación
     const footerTopRow = document.querySelector('.footer-top-row');
     if (footerTopRow) {
@@ -1262,45 +1277,71 @@
     });
   }
 
-  function renderRecentMatchEntries() {
-    if (!recentMatchEntries) return;
-    const items = matches.slice(-10).reverse();
-    recentMatchEntries.innerHTML = '';
-    items.forEach(ent => {
-      const player = players.find(p => p.id === ent.playerId);
-      if (!player) return; // si el jugador fue eliminado, no mostrar entrada huérfana
-      const li = document.createElement('li');
-      const left = document.createElement('div');
-      const right = document.createElement('div');
-      right.className = 'row-actions';
-      const title = document.createElement('div');
-      title.textContent = player.name;
-      const meta = document.createElement('div'); meta.className = 'meta';
-      meta.textContent = `G:${ent.goals} A:${ent.assists} TA:${ent.yellows} TR:${ent.reds} Min:${ent.minutes}`;
-      left.appendChild(title);
-      left.appendChild(meta);
+     function renderRecentMatchEntries() {
+     if (!recentMatchEntries) return;
+     const items = matches.slice(-10).reverse();
+     recentMatchEntries.innerHTML = '';
+     items.forEach(ent => {
+       const player = players.find(p => p.id === ent.playerId);
+       if (!player) return; // si el jugador fue eliminado, no mostrar entrada huérfana
+       
+       const li = document.createElement('li');
+       li.className = 'recent-match-item';
+       
+       const left = document.createElement('div');
+       left.className = 'match-info';
+       
+       const right = document.createElement('div');
+       right.className = 'match-actions';
+       
+       // Contenedor para nombre y fecha en la misma línea
+       const nameDateRow = document.createElement('div');
+       nameDateRow.className = 'name-date-row';
+       
+       // Nombre del jugador
+       const title = document.createElement('div');
+       title.className = 'player-name';
+       title.textContent = player.name;
+       
+       // Fecha del partido
+       const date = document.createElement('div');
+       date.className = 'match-date';
+       date.textContent = formatDateHuman(ent.date);
+       
+       // Estadísticas del partido
+       const meta = document.createElement('div');
+       meta.className = 'match-stats';
+       meta.textContent = `G:${ent.goals} A:${ent.assists} 🟨:${ent.yellows} 🟥:${ent.reds} Min:${ent.minutes}`;
+       
+       nameDateRow.appendChild(title);
+       nameDateRow.appendChild(date);
+       left.appendChild(nameDateRow);
+       left.appendChild(meta);
 
-      const btnDelete = document.createElement('button');
-      btnDelete.className = 'btn danger';
-      btnDelete.textContent = 'Eliminar';
-      btnDelete.addEventListener('click', () => {
-        const idx = matches.findIndex(m => m === ent);
-        if (idx >= 0) {
-          const entryId = ent.id;
-          matches.splice(idx, 1);
-          saveState();
-          
-          // Sincronizar eliminación con Firebase
-          if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
-            cloud.db.collection('matchEntries').doc(entryId).delete().catch((error) => {
-              console.error('Error eliminando entrada de partido de la nube:', error);
-            });
-          }
-          
-          renderMatchStats();
-          renderRecentMatchEntries();
-        }
-      });
+             const btnDelete = document.createElement('button');
+       btnDelete.className = 'btn danger';
+       btnDelete.textContent = 'Eliminar';
+       btnDelete.addEventListener('click', () => {
+         // Confirmar eliminación antes de proceder
+         if (confirm(`¿Estás seguro de que quieres eliminar el partido de ${player.name} del ${formatDateHuman(ent.date)}? Esta acción no se puede deshacer.`)) {
+           const idx = matches.findIndex(m => m === ent);
+           if (idx >= 0) {
+             const entryId = ent.id;
+             matches.splice(idx, 1);
+             saveState();
+             
+             // Sincronizar eliminación con Firebase
+             if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+               cloud.db.collection('matchEntries').doc(entryId).delete().catch((error) => {
+                 console.error('Error eliminando entrada de partido de la nube:', error);
+               });
+             }
+             
+             renderMatchStats();
+             renderRecentMatchEntries();
+           }
+         }
+       });
 
       right.appendChild(btnDelete);
       li.appendChild(left);
@@ -1637,9 +1678,7 @@
       }
       
       // Verificar si ya existen datos para este jugador en esta fecha
-      console.log('Verificando duplicados para:', playerId, date);
       const existingEntry = findMatchEntryByPlayerAndDate(playerId, date);
-      console.log('Entrada existente encontrada:', existingEntry);
       if (existingEntry) {
         const confirmed = confirm(`Ya existen datos para ${getPlayerName(playerId)} en la fecha ${formatDateHuman(date)}. ¿Deseas sobrescribirlos?`);
         if (!confirmed) return;
@@ -1891,6 +1930,9 @@
       matchResults = matchResults.filter(r => r.rivalId !== rival.id);
       
       // Procesar cada bloque de jornada
+      const journeyResults = [];
+      const usedJourneys = new Set(); // Para verificar duplicados dentro del formulario
+      
       journeyBlocks.forEach((block, index) => {
         const journeyNum = index + 1;
         const journey = document.getElementById(`match-journey-${journeyNum}`).value;
@@ -1903,6 +1945,25 @@
         if (journey && location) {
           hasValidJourney = true;
           
+                  // Verificar duplicados dentro del formulario (solo para jornadas de liga)
+        if (journey !== 'A' && usedJourneys.has(journey)) {
+          alert(`Error: La jornada ${journey} está duplicada en el formulario. Solo puede haber un partido por jornada de liga.`);
+          return;
+        }
+        if (journey !== 'A') {
+          usedJourneys.add(journey);
+        }
+          
+          // Verificar si ya existe esta jornada en cualquier equipo (solo para jornadas de liga)
+          if (journey !== 'A') {
+            const existingJourney = findExistingJourneyGlobally(journey, block);
+            if (existingJourney) {
+              const rivalName = rivals.find(r => r.id === existingJourney.rivalId)?.name || 'otro equipo';
+              alert(`Error: Ya existe un partido para la jornada ${journey} contra ${rivalName}. Solo puede haber un partido por jornada de liga en toda la competición.`);
+              return;
+            }
+          }
+          
           const matchResult = {
             id: generateId('result'),
             rivalId: rival.id,
@@ -1913,8 +1974,17 @@
             comments: comments || null,
             createdAt: Date.now()
           };
-          addMatchResult(matchResult);
+          
+          journeyResults.push(matchResult);
         }
+      });
+      
+      // Si hay errores de validación, no continuar
+      if (journeyResults.length === 0) return;
+      
+      // Añadir todos los resultados válidos
+      journeyResults.forEach(matchResult => {
+        addMatchResult(matchResult);
       });
       
       // Cerrar modal
@@ -1970,6 +2040,12 @@
   function loadExistingJourneys(rival) {
     const existingResults = matchResults.filter(r => r.rivalId === rival.id);
     
+    // Limpiar todos los bloques de jornada existentes (excepto el primero)
+    const journeyBlocks = document.querySelectorAll('.journey-block');
+    for (let i = 1; i < journeyBlocks.length; i++) {
+      journeyBlocks[i].remove();
+    }
+    
     if (existingResults.length === 0) return;
     
     // Crear bloques adicionales si hay más de 1 jornada (ya tenemos 1 por defecto)
@@ -1986,8 +2062,15 @@
       if (journeySelect) journeySelect.value = result.journey;
       
       // Cargar local/visitante
-      const locationRadio = document.getElementById(`location-${result.location}-${journeyNum}`);
-      if (locationRadio) locationRadio.checked = true;
+      const locationLocal = document.getElementById(`location-local-${journeyNum}`);
+      const locationVisitante = document.getElementById(`location-visitante-${journeyNum}`);
+      if (locationLocal && locationVisitante) {
+        if (result.location === 'local') {
+          locationLocal.checked = true;
+        } else if (result.location === 'visitante') {
+          locationVisitante.checked = true;
+        }
+      }
       
       // Cargar fecha (si existe)
       const dateInput = document.getElementById(`match-date-${journeyNum}`);
@@ -2000,6 +2083,14 @@
       // Cargar comentarios (si existen)
       const commentsInput = document.getElementById(`match-comments-${journeyNum}`);
       if (commentsInput && result.comments) commentsInput.value = result.comments;
+    });
+    
+    // Configurar botones de eliminar para todos los bloques existentes
+    const allJourneyBlocks = document.querySelectorAll('.journey-block');
+    allJourneyBlocks.forEach((block, index) => {
+      const journeyNum = index + 1;
+      setupDeletePartidoButton(journeyNum);
+      setupJourneyValidation(block);
     });
   }
 
@@ -2121,7 +2212,6 @@
       const li = document.createElement('li');
       li.className = 'rival-item';
       li.onclick = () => {
-        console.log('Clic en rival:', rival.name);
         openRivalResultModal(rival);
       };
       
@@ -2169,14 +2259,12 @@
 
   // Función para abrir modal de resultado
   function openRivalResultModal(rival) {
-    console.log('Abriendo modal para rival:', rival.name);
     
     const modal = document.getElementById('rival-result-modal');
     const shieldDisplay = document.getElementById('rival-shield-display');
     const nameDisplay = document.getElementById('rival-name-display');
     const fieldDisplay = document.getElementById('rival-field-display');
     
-    console.log('Elementos del modal:', { modal, shieldDisplay, nameDisplay, fieldDisplay });
     
     if (!modal || !shieldDisplay || !nameDisplay || !fieldDisplay) {
       console.error('Faltan elementos del modal');
@@ -2197,17 +2285,25 @@
     // Configurar lógica automática de Local/Visitante
     setupLocationLogic();
     
+    // Limpiar todos los event listeners de botones de eliminar existentes
+    clearDeleteButtonsListeners();
+    
     // Configurar botón para añadir partido
     setupAddMatchButton();
     
-    // Configurar botón de eliminar para el primer partido
-    setupDeletePartidoButton(1);
+    // Configurar TODOS los botones de eliminar y validaciones existentes
+    const allJourneyBlocks = document.querySelectorAll('.journey-block');
+    console.log(`Configurando ${allJourneyBlocks.length} bloques de jornada al abrir modal`);
+    
+    allJourneyBlocks.forEach((block, index) => {
+      const journeyNum = index + 1;
+      console.log(`Configurando bloque ${journeyNum}`);
+      setupDeletePartidoButton(journeyNum);
+      setupJourneyValidation(block);
+    });
     
     // Mostrar modal
-    console.log('Mostrando modal, hidden antes:', modal.hidden);
     modal.hidden = false;
-    console.log('Modal hidden después:', modal.hidden);
-    console.log('Modal display:', modal.style.display);
   }
 
   // Función para renderizar calendario
@@ -2298,6 +2394,7 @@
         
       const match = document.createElement('div');
       match.className = 'calendar-match';
+      match.style.cursor = 'pointer';
       
       const rivalName = document.createElement('h3');
       rivalName.className = 'calendar-rival';
@@ -2316,7 +2413,12 @@
       
       const resultDisplay = document.createElement('div');
       resultDisplay.className = 'calendar-result';
-      resultDisplay.textContent = result.result || 'Sin resultado';
+      resultDisplay.textContent = result.result || 'SR';
+      
+      // Hacer el partido clickeable para abrir el modal del rival
+      match.addEventListener('click', () => {
+        openRivalFromCalendar(rival.id);
+      });
       
       item.appendChild(date);
       item.appendChild(match);
@@ -2324,6 +2426,24 @@
       
       calendarList.appendChild(item);
     });
+  }
+
+  // Función para abrir el modal de un rival desde el calendario
+  function openRivalFromCalendar(rivalId) {
+    // Cambiar a la pestaña de rivales
+    const rivalesTab = document.getElementById('tab-rivales');
+    if (rivalesTab) {
+      rivalesTab.click();
+    }
+    
+    // Esperar un momento para que se renderice la lista de rivales
+    setTimeout(() => {
+      // Buscar el rival en la lista y abrir su modal
+      const rival = rivals.find(r => r.id === rivalId);
+      if (rival) {
+        openRivalResultModal(rival);
+      }
+    }, 100);
   }
 
   // Función para configurar el botón de añadir partido
@@ -2340,20 +2460,165 @@
     });
   }
 
+  // Función para verificar si ya existe una jornada en cualquier equipo
+  function findExistingJourneyGlobally(journey, excludeJourneyBlock = null) {
+    // Los partidos amistosos pueden repetirse, no hay restricción
+    if (journey === 'A') {
+      return null;
+    }
+    
+    // Buscar si ya existe esta jornada en cualquier equipo
+    const existingJourney = matchResults.find(r => r.journey === journey);
+    
+    if (existingJourney) {
+      // Si estamos editando, verificar que no sea el mismo partido
+      if (excludeJourneyBlock) {
+        const journeyInput = excludeJourneyBlock.querySelector('select[id^="match-journey-"]');
+        const locationInputs = excludeJourneyBlock.querySelectorAll('input[name^="match-location-"]');
+        
+        if (journeyInput && locationInputs.length > 0) {
+          const currentJourney = journeyInput.value;
+          const currentLocation = Array.from(locationInputs).find(input => input.checked)?.value;
+          
+          // Si es la misma jornada y ubicación, no es un conflicto
+          if (currentJourney === journey && currentLocation === existingJourney.location) {
+            return null;
+          }
+        }
+      }
+      
+      return existingJourney;
+    }
+    
+    return null;
+  }
+
+  // Función para limpiar todos los event listeners de botones de eliminar
+  function clearDeleteButtonsListeners() {
+    const deleteButtons = document.querySelectorAll('.delete-partido-btn');
+    deleteButtons.forEach(btn => {
+      // Limpiar flags de configuración
+      delete btn.dataset.deleteConfigured;
+    });
+    
+    // Limpiar flags de validación de jornadas
+    const journeySelects = document.querySelectorAll('select[id^="match-journey-"]');
+    journeySelects.forEach(select => {
+      delete select.dataset.validationConfigured;
+    });
+  }
+
+  // Función para configurar validación de jornadas duplicadas
+  function setupJourneyValidation(journeyBlock) {
+    const journeySelect = journeyBlock.querySelector('select[id^="match-journey-"]');
+    if (!journeySelect) {
+      console.warn('No se encontró select de jornada para configurar validación');
+      return;
+    }
+    
+    // Verificar si ya tiene event listener para evitar duplicados
+    if (journeySelect.dataset.validationConfigured) {
+      return;
+    }
+    
+    journeySelect.addEventListener('change', () => {
+      const selectedJourney = journeySelect.value;
+      if (!selectedJourney) return;
+      
+      // Verificar duplicados en el formulario actual (solo para jornadas de liga)
+      const allJourneyBlocks = document.querySelectorAll('.journey-block');
+      let isDuplicateInForm = false;
+      
+      if (selectedJourney !== 'A') {
+        // Solo verificar duplicados para jornadas de liga, no para amistosos
+        allJourneyBlocks.forEach(block => {
+          if (block !== journeyBlock) {
+            const otherJourneySelect = block.querySelector('select[id^="match-journey-"]');
+            if (otherJourneySelect && otherJourneySelect.value === selectedJourney) {
+              isDuplicateInForm = true;
+            }
+          }
+        });
+      }
+      
+      // Verificar si ya existe esta jornada en cualquier equipo
+      const existingJourney = findExistingJourneyGlobally(selectedJourney, journeyBlock);
+      
+      // Mostrar advertencia si es duplicado
+      if (isDuplicateInForm || existingJourney) {
+        // Mostrar mensaje de error
+        let errorMsg = journeyBlock.querySelector('.journey-error');
+        if (!errorMsg) {
+          errorMsg = document.createElement('div');
+          errorMsg.className = 'journey-error';
+          errorMsg.style.color = '#ef4444';
+          errorMsg.style.fontSize = '0.8em';
+          errorMsg.style.marginTop = '4px';
+          journeyBlock.appendChild(errorMsg);
+        }
+        
+        if (isDuplicateInForm) {
+          errorMsg.textContent = `⚠️ La jornada ${selectedJourney} ya está seleccionada en otro partido de este formulario`;
+        } else {
+          const rivalName = rivals.find(r => r.id === existingJourney.rivalId)?.name || 'otro equipo';
+          errorMsg.textContent = `⚠️ La jornada ${selectedJourney} ya está programada contra ${rivalName}`;
+        }
+      } else {
+        // Eliminar mensaje de error
+        const errorMsg = journeyBlock.querySelector('.journey-error');
+        if (errorMsg) {
+          errorMsg.remove();
+        }
+      }
+    });
+    
+    // Marcar como configurado para evitar duplicados
+    journeySelect.dataset.validationConfigured = 'true';
+  }
+
   // Función para configurar botón de eliminar partido
   function setupDeletePartidoButton(partidoNumber) {
-    const deleteBtn = document.querySelector(`[data-partido="${partidoNumber}"]`);
-    if (!deleteBtn) return;
+    // Buscar específicamente en el modal del rival
+    const modalContent = document.querySelector('#rival-result-modal .modal-content');
+    if (!modalContent) {
+      console.warn(`Modal no encontrado para configurar botón de eliminar partido ${partidoNumber}`);
+      return;
+    }
     
-    deleteBtn.addEventListener('click', () => {
+    const deleteBtn = modalContent.querySelector(`[data-partido="${partidoNumber}"]`);
+    if (!deleteBtn) {
+      console.warn(`No se encontró botón de eliminar para partido ${partidoNumber}`);
+      return;
+    }
+    
+    // Verificar si ya tiene event listener para evitar duplicados
+    if (deleteBtn.dataset.deleteConfigured) {
+      return;
+    }
+    
+    // Añadir el event listener
+    deleteBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       deletePartido(partidoNumber);
     });
+    
+    // Marcar como configurado para evitar duplicados
+    deleteBtn.dataset.deleteConfigured = 'true';
   }
 
   // Función para eliminar un partido específico
   function deletePartido(partidoNumber) {
+    console.log(`Intentando eliminar partido ${partidoNumber}`);
+    
     const modalContent = document.querySelector('#rival-result-modal .modal-content');
+    if (!modalContent) {
+      console.error('No se encontró el modal content');
+      return;
+    }
+    
     const journeyBlocks = modalContent.querySelectorAll('.journey-block');
+    console.log(`Bloques de jornada encontrados: ${journeyBlocks.length}`);
     
     // No permitir eliminar si solo queda un partido
     if (journeyBlocks.length <= 1) {
@@ -2361,9 +2626,17 @@
       return;
     }
     
-    const partidoBlock = modalContent.querySelector(`[data-partido="${partidoNumber}"]`).closest('.journey-block');
+    const deleteBtn = modalContent.querySelector(`[data-partido="${partidoNumber}"]`);
+    if (!deleteBtn) {
+      console.error(`No se encontró botón de eliminar para partido ${partidoNumber}`);
+      return;
+    }
     
-    if (!partidoBlock) return;
+    const partidoBlock = deleteBtn.closest('.journey-block');
+    if (!partidoBlock) {
+      console.error(`No se encontró bloque de jornada para partido ${partidoNumber}`);
+      return;
+    }
     
     // Confirmar eliminación
     if (confirm(`¿Estás seguro de que quieres eliminar el Partido ${partidoNumber}?`)) {
@@ -2414,10 +2687,25 @@
       if (dateInput) dateInput.id = `match-date-${newNumber}`;
       if (resultInput) resultInput.id = `match-result-${newNumber}`;
       if (commentsInput) commentsInput.id = `match-comments-${newNumber}`;
-      
-      // Reconfigurar el botón de eliminar
-      setupDeletePartidoButton(newNumber);
     });
+    
+    // Reconfigurar todos los botones de eliminar después de la renumeración
+    journeyBlocks.forEach((block, index) => {
+      const newNumber = index + 1;
+      const deleteBtn = block.querySelector('.delete-partido-btn');
+      if (deleteBtn) {
+        // Limpiar event listeners anteriores
+        const newDeleteBtn = deleteBtn.cloneNode(true);
+        if (deleteBtn.parentNode) {
+          deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
+        }
+        
+        // Configurar el nuevo botón
+        setupDeletePartidoButton(newNumber);
+      }
+    });
+    
+    console.log(`Renumeración completada. Bloques restantes: ${journeyBlocks.length}`);
   }
 
   // Función para añadir nuevo bloque de jornada
@@ -2518,6 +2806,9 @@
     
     // Configurar el botón de eliminar para el nuevo bloque
     setupDeletePartidoButton(journeyNumber);
+    
+    // Configurar validación de jornadas duplicadas en tiempo real
+    setupJourneyValidation(newJourneyBlock);
   }
 
   // Función para buscar entrada de partido por jugador y fecha

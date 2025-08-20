@@ -449,25 +449,49 @@ table.table th { color: var(--muted); font-weight: 500; }
 /* Estilos para el modal de resultados */
 .rival-info {
   text-align: center;
+}
+
+.rival-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
   margin-bottom: 20px;
-  padding: 16px;
+  padding: 20px;
   background: var(--panel);
   border-radius: 8px;
+  border: 1px solid var(--border);
 }
 
-.rival-info img {
-  margin: 0 auto 12px;
-  display: block;
+.rival-header img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: white;
+  padding: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.rival-info h4 {
-  margin: 0 0 8px 0;
+.rival-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.rival-details h4 {
+  margin: 0;
   color: var(--text);
+  font-size: 1.4em;
+  font-weight: 600;
 }
 
-.rival-info p {
+.rival-details p {
   margin: 0;
   color: var(--muted);
+  font-size: 1em;
 }
 
 /* Bloques de jornadas */
@@ -540,6 +564,59 @@ table.table th { color: var(--muted); font-weight: 500; }
   min-width: unset;
 }
 
+/* Estilos para partidos recientes */
+.recent-match-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: var(--panel);
+}
+
+.match-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+.name-date-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.match-date {
+  font-size: 0.8em;
+  color: var(--muted);
+  font-weight: 500;
+  text-align: right;
+}
+
+.player-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 1em;
+}
+
+.match-stats {
+  font-size: 0.8em;
+  color: var(--muted);
+}
+
+.match-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Estilos para el calendario */
 .calendar-item {
   display: flex;
@@ -573,7 +650,25 @@ table.table th { color: var(--muted); font-weight: 500; }
 .calendar-match {
   flex: 1;
   text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 12px;
+  border-radius: 6px;
+  position: relative;
 }
+
+.calendar-match:hover {
+  background: var(--primary);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.calendar-match:hover .calendar-rival,
+.calendar-match:hover .calendar-details {
+  color: white;
+}
+
 
 .calendar-rival {
   font-weight: 600;
@@ -593,6 +688,7 @@ table.table th { color: var(--muted); font-weight: 500; }
   border-radius: 8px;
   font-weight: 600;
   color: var(--text);
+  text-align: center;
 }
 
 
