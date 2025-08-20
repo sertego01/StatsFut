@@ -1954,9 +1954,13 @@
       saveCloudConfig();
       applyThemeFromConfig();
       renderMatchStats();
-      // Inicia Firebase si procede
-      await initFirebaseIfEnabled();
-      settingsModal.hidden = true;
+             // Inicia Firebase si procede
+       await initFirebaseIfEnabled();
+       
+       // Actualizar validación de minutos si cambió la configuración
+       setupMinutesValidation();
+       
+       settingsModal.hidden = true;
     });
     if (btnSettingsResetColors) {
       btnSettingsResetColors.addEventListener('click', () => {
@@ -1984,40 +1988,24 @@
         return;
       }
       
-      if (!playerId) {
-        alert('Por favor, selecciona un jugador.');
-        return;
-      }
-      
-      // Verificar que el jugador esté convocado para esa fecha
-      const convocation = findConvocationByDate(date);
-      if (!convocation) {
-        alert('No hay convocatoria registrada para esa fecha.');
-        return;
-      }
-      
-      if (convocation.players[playerId] !== 'C') {
-        alert('Este jugador no está convocado para el partido de esa fecha.');
-        return;
-      }
-      
-      // Validar minutos (no puede exceder la configuración)
-      const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
-      const maxMinutes = config.matchMinutes || 80;
-      
-      if (minutes > maxMinutes) {
-        alert(`Los minutos no pueden exceder ${maxMinutes} (configuración actual). Por favor, ajusta los minutos o cambia la configuración.`);
-        inputMatchMinutes.focus();
-        return;
-      }
-      
-      // Verificar si ya existen datos para este jugador en esta fecha
-      const existingEntry = findMatchEntryByPlayerAndDate(playerId, date);
-      if (existingEntry) {
-        const confirmed = confirm(`Ya existen datos para ${getPlayerName(playerId)} en la fecha ${formatDateHuman(date)}. ¿Deseas sobrescribirlos?`);
-        if (!confirmed) return;
+              if (!playerId) {
+          alert('Por favor, selecciona un jugador.');
+          return;
+        }
         
-        // Validar minutos antes de actualizar
+        // Verificar que el jugador esté convocado para esa fecha
+        const convocation = findConvocationByDate(date);
+        if (!convocation) {
+          alert('No hay convocatoria registrada para esa fecha.');
+          return;
+        }
+        
+        if (convocation.players[playerId] !== 'C') {
+          alert('Este jugador no está convocado para el partido de esa fecha.');
+          return;
+        }
+        
+        // Validar minutos (no puede exceder la configuración)
         const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
         const maxMinutes = config.matchMinutes || 80;
         
@@ -2026,14 +2014,30 @@
           inputMatchMinutes.focus();
           return;
         }
-        
-        // Actualizar entrada existente
-        existingEntry.goals = Math.max(0, parseInt(inputMatchGoals.value, 10) || 0);
-        existingEntry.assists = Math.max(0, parseInt(inputMatchAssists.value, 10) || 0);
-        existingEntry.yellows = Math.max(0, parseInt(inputMatchYellows.value, 10) || 0);
-        existingEntry.reds = Math.max(0, parseInt(inputMatchReds.value, 10) || 0);
-        existingEntry.minutes = Math.max(0, parseInt(inputMatchMinutes.value, 10) || 0);
-        existingEntry.updatedAt = Date.now();
+      
+              // Verificar si ya existen datos para este jugador en esta fecha
+        const existingEntry = findMatchEntryByPlayerAndDate(playerId, date);
+        if (existingEntry) {
+          const confirmed = confirm(`Ya existen datos para ${getPlayerName(playerId)} en la fecha ${formatDateHuman(date)}. ¿Deseas sobrescribirlos?`);
+          if (!confirmed) return;
+          
+          // Validar minutos antes de actualizar
+          const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
+          const maxMinutes = config.matchMinutes || 80;
+          
+          if (minutes > maxMinutes) {
+            alert(`Los minutos no pueden exceder ${maxMinutes} (configuración actual). Por favor, ajusta los minutos o cambia la configuración.`);
+            inputMatchMinutes.focus();
+            return;
+          }
+          
+          // Actualizar entrada existente
+          existingEntry.goals = Math.max(0, parseInt(inputMatchGoals.value, 10) || 0);
+          existingEntry.assists = Math.max(0, parseInt(inputMatchAssists.value, 10) || 0);
+          existingEntry.yellows = Math.max(0, parseInt(inputMatchYellows.value, 10) || 0);
+          existingEntry.reds = Math.max(0, parseInt(inputMatchReds.value, 10) || 0);
+          existingEntry.minutes = minutes;
+          existingEntry.updatedAt = Date.now();
         
         // Actualizar en el array local
         const entryIndex = matches.findIndex(e => e.id === existingEntry.id);
@@ -2162,6 +2166,63 @@
     });
   }
 
+  // Función para validar minutos en tiempo real
+  function setupMinutesValidation() {
+    if (!inputMatchMinutes) return;
+    
+    const validateMinutes = () => {
+      const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
+      const maxMinutes = config.matchMinutes || 80;
+      
+      // Remover estilos de error previos
+      inputMatchMinutes.style.borderColor = '';
+      inputMatchMinutes.style.backgroundColor = '';
+      
+      // Remover mensaje de error previo
+      const existingError = inputMatchMinutes.parentNode.querySelector('.minutes-error');
+      if (existingError) {
+        existingError.remove();
+      }
+      
+      if (minutes > maxMinutes) {
+        // Aplicar estilos de error
+        inputMatchMinutes.style.borderColor = '#ef4444';
+        inputMatchMinutes.style.backgroundColor = '#fef2f2';
+        
+        // Crear mensaje de error
+        const errorMsg = document.createElement('div');
+        errorMsg.className = 'minutes-error';
+        errorMsg.style.cssText = `
+          color: #ef4444;
+          font-size: 0.8em;
+          margin-top: 4px;
+          font-weight: 500;
+        `;
+        errorMsg.textContent = `⚠️ Máximo ${maxMinutes} minutos permitidos (configuración actual)`;
+        
+        // Insertar mensaje después del input
+        inputMatchMinutes.parentNode.appendChild(errorMsg);
+        
+        return false;
+      }
+      
+      return true;
+    };
+    
+    // Validar en tiempo real mientras se escribe
+    inputMatchMinutes.addEventListener('input', validateMinutes);
+    
+    // Validar al perder el foco
+    inputMatchMinutes.addEventListener('blur', validateMinutes);
+    
+    // Validar al hacer submit
+    inputMatchMinutes.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        validateMinutes();
+      }
+    });
+  }
+
   // Event listener para fecha del partido
   if (inputMatchDate) {
     inputMatchDate.addEventListener('change', () => {
@@ -2169,39 +2230,8 @@
     });
   }
   
-  // Event listener para validar minutos en tiempo real
-  if (inputMatchMinutes) {
-    inputMatchMinutes.addEventListener('input', () => {
-      const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
-      const maxMinutes = config.matchMinutes || 80;
-      
-      if (minutes > maxMinutes) {
-        inputMatchMinutes.style.borderColor = '#ef4444';
-        inputMatchMinutes.style.backgroundColor = '#fef2f2';
-        
-        // Mostrar mensaje de error debajo del campo
-        let errorMsg = inputMatchMinutes.parentNode.querySelector('.minutes-error');
-        if (!errorMsg) {
-          errorMsg = document.createElement('div');
-          errorMsg.className = 'minutes-error';
-          errorMsg.style.color = '#ef4444';
-          errorMsg.style.fontSize = '0.8em';
-          errorMsg.style.marginTop = '4px';
-          inputMatchMinutes.parentNode.appendChild(errorMsg);
-        }
-        errorMsg.textContent = `Máximo ${maxMinutes} minutos permitidos`;
-      } else {
-        inputMatchMinutes.style.borderColor = '';
-        inputMatchMinutes.style.backgroundColor = '';
-        
-        // Eliminar mensaje de error
-        const errorMsg = inputMatchMinutes.parentNode.querySelector('.minutes-error');
-        if (errorMsg) {
-          errorMsg.remove();
-        }
-      }
-    });
-  }
+  // Configurar validación de minutos
+  setupMinutesValidation();
 
   // Event listener para cerrar modal de estadísticas del jugador
   document.addEventListener('click', (e) => {
@@ -2527,6 +2557,21 @@
       // Añadir estilos CSS específicos para iOS
       const style = document.createElement('style');
       style.textContent = `
+        /* Estilos para validación de minutos */
+        .minutes-error {
+          color: #ef4444;
+          font-size: 0.8em;
+          margin-top: 4px;
+          font-weight: 500;
+          animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Estilos para radio buttons */
         .radio-group input[type="radio"] {
           -webkit-appearance: none;
           appearance: none;
@@ -2591,71 +2636,6 @@
         
         .radio-group .radio:hover {
           background-color: var(--panel);
-        }
-        
-        /* FORZAR LAYOUT EN UNA LÍNEA PARA iOS */
-        .radio-group {
-          display: flex !important;
-          flex-direction: row !important;
-          flex-wrap: nowrap !important;
-          justify-content: flex-start !important;
-          align-items: center !important;
-          gap: 8px !important;
-          width: 100% !important;
-          overflow-x: auto !important;
-          -webkit-overflow-scrolling: touch !important;
-        }
-        
-        .radio-group .radio {
-          flex-shrink: 0 !important;
-          min-width: auto !important;
-          white-space: nowrap !important;
-        }
-        
-        /* Asegurar que los radio buttons estén en la misma línea */
-        .radio-group input[type="radio"] + label {
-          display: inline-block !important;
-          white-space: nowrap !important;
-        }
-        
-        /* Estilos específicos para asistencia de entrenamientos */
-        #attendance-list .radio-group {
-          max-width: 100% !important;
-          overflow-x: auto !important;
-          padding: 4px 0 !important;
-        }
-        
-        #attendance-list .radio-group .radio {
-          margin: 0 2px !important;
-          padding: 2px 4px !important;
-        }
-        
-        /* Mejorar layout de la lista de asistencia */
-        #attendance-list .checklist-item {
-          display: flex !important;
-          flex-direction: row !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          padding: 8px 0 !important;
-          border-bottom: 1px solid var(--border) !important;
-        }
-        
-        #attendance-list .checklist-item > div:first-child {
-          flex: 1 !important;
-          min-width: 0 !important;
-          margin-right: 16px !important;
-        }
-        
-        #attendance-list .checklist-item .row-actions {
-          flex-shrink: 0 !important;
-          display: flex !important;
-          align-items: center !important;
-        }
-        
-        /* Asegurar que los radio buttons no se rompan en múltiples líneas */
-        .radio-group {
-          min-height: 40px !important;
-          align-items: center !important;
         }
       `;
       document.head.appendChild(style);
