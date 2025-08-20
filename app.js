@@ -2453,8 +2453,8 @@
     });
   }
 
-  // Lógica automática para Local/Visitante (solo para jornadas de liga)
-  function setupLocationLogic() {
+
+
     // Obtener todos los bloques de jornada
     const journeyBlocks = document.querySelectorAll('.journey-block');
     
@@ -2845,8 +2845,7 @@
     // Cargar jornadas existentes si las hay
     loadExistingJourneys(rival);
     
-    // Configurar lógica automática de Local/Visitante
-    setupLocationLogic();
+
     
     // Limpiar todos los event listeners de botones de eliminar existentes
     clearDeleteButtonsListeners();
@@ -3208,8 +3207,7 @@
       // Renumerar los partidos restantes
       renumberPartidos();
       
-      // Reconfigurar la lógica de Local/Visitante
-      setupLocationLogic();
+
     }
   }
 
@@ -3364,8 +3362,7 @@
     // Insertar antes de los botones de acción
     modalActions.parentNode.insertBefore(newJourneyBlock, modalActions);
     
-    // Configurar la lógica automática de Local/Visitante para el nuevo bloque
-    setupLocationLogic();
+
     
     // Configurar el botón de eliminar para el nuevo bloque
     setupDeletePartidoButton(journeyNumber);
