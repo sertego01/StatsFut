@@ -2453,6 +2453,86 @@
     });
   }
 
+  // Función para mejorar la compatibilidad con iOS en radio buttons
+  function enhanceIOSCompatibility() {
+    // Detectar si es iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    if (isIOS) {
+      // Añadir estilos CSS específicos para iOS
+      const style = document.createElement('style');
+      style.textContent = `
+        .radio-group input[type="radio"] {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 24px;
+          height: 24px;
+          border: 2px solid var(--border);
+          border-radius: 50%;
+          background: var(--panel);
+          position: relative;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          -webkit-tap-highlight-color: transparent;
+        }
+        
+        .radio-group input[type="radio"]:checked {
+          background: var(--primary);
+          border-color: var(--primary);
+          transform: scale(1.1);
+        }
+        
+        .radio-group input[type="radio"]:checked::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 10px;
+          height: 10px;
+          background: white;
+          border-radius: 50%;
+        }
+        
+        .radio-group input[type="radio"]:active {
+          transform: scale(0.95);
+        }
+        
+        .radio-group label {
+          cursor: pointer;
+          user-select: none;
+          -webkit-user-select: none;
+          padding: 8px 12px;
+          border-radius: 6px;
+          transition: background-color 0.2s ease;
+          -webkit-tap-highlight-color: transparent;
+        }
+        
+        .radio-group label:hover {
+          background-color: var(--panel);
+        }
+        
+        .radio-group label:active {
+          background-color: var(--border);
+        }
+        
+        /* Mejorar el área táctil en iOS */
+        .radio-group .radio {
+          padding: 4px;
+          margin: 2px;
+          border-radius: 8px;
+          transition: background-color 0.2s ease;
+        }
+        
+        .radio-group .radio:hover {
+          background-color: var(--panel);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }
+
   // Lógica automática para Local/Visitante
   function setupLocationLogic() {
     // Obtener todos los bloques de jornada
@@ -2476,39 +2556,51 @@
           locationVisitante.parentNode.replaceChild(newVisitante, locationVisitante);
         }
         
-        // Añadir nuevos event listeners
-        newLocal.addEventListener('change', () => {
-          if (newLocal.checked) {
-            // Si se selecciona Local en esta jornada, marcar Visitante en la siguiente
+        // Añadir nuevos event listeners (compatibles con iOS)
+        newLocal.addEventListener('click', () => {
+          // Forzar el estado checked inmediatamente para iOS
+          newLocal.checked = true;
+          
+          // Desmarcar el otro radio button
+          newVisitante.checked = false;
+          
+          // Lógica automática: marcar Visitante en la siguiente jornada
+          setTimeout(() => {
             const nextBlock = journeyBlocks[index + 1];
             if (nextBlock) {
               const nextJourneyNum = journeyNum + 1;
               const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
-              if (nextVisitante) {
+              const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
+              
+              if (nextVisitante && nextLocal) {
                 nextVisitante.checked = true;
-                // Desmarcar Local en la siguiente
-                const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
-                if (nextLocal) nextLocal.checked = false;
+                nextLocal.checked = false;
               }
             }
-          }
+          }, 100);
         });
         
-        newVisitante.addEventListener('change', () => {
-          if (newVisitante.checked) {
-            // Si se selecciona Visitante en esta jornada, marcar Local en la siguiente
+        newVisitante.addEventListener('click', () => {
+          // Forzar el estado checked inmediatamente para iOS
+          newVisitante.checked = true;
+          
+          // Desmarcar el otro radio button
+          newLocal.checked = false;
+          
+          // Lógica automática: marcar Local en la siguiente jornada
+          setTimeout(() => {
             const nextBlock = journeyBlocks[index + 1];
             if (nextBlock) {
               const nextJourneyNum = journeyNum + 1;
               const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
-              if (nextLocal) {
+              const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
+              
+              if (nextLocal && nextVisitante) {
                 nextLocal.checked = true;
-                // Desmarcar Visitante en la siguiente
-                const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
-                if (nextVisitante) nextVisitante.checked = false;
+                nextVisitante.checked = false;
               }
             }
-          }
+          }, 100);
         });
       }
     });
@@ -3533,6 +3625,9 @@
     
     // Limpiar duplicados existentes
     cleanDuplicates();
+    
+    // Mejorar compatibilidad con iOS
+    enhanceIOSCompatibility();
     
     // Para nuevos usuarios, activar automáticamente la sincronización
     const isFirstTime = !localStorage.getItem(STORAGE_KEYS_CLOUD.cloudEnabled);
