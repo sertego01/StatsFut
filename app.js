@@ -7,6 +7,8 @@
     sessions: 'asistencia_sessions',
     matches: 'asistencia_matches',
     convocations: 'asistencia_convocations',
+    rivals: 'asistencia_rivals',
+    matchResults: 'asistencia_matchResults',
     lastSelectedDate: 'asistencia_last_date'
   };
 
@@ -26,6 +28,8 @@
     localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify(sessions));
     localStorage.setItem(STORAGE_KEYS.matches, JSON.stringify(matches));
     localStorage.setItem(STORAGE_KEYS.convocations, JSON.stringify(convocations));
+    localStorage.setItem(STORAGE_KEYS.rivals, JSON.stringify(rivals));
+    localStorage.setItem(STORAGE_KEYS.matchResults, JSON.stringify(matchResults));
   }
 
   function loadState() {
@@ -34,15 +38,21 @@
       const s = JSON.parse(localStorage.getItem(STORAGE_KEYS.sessions) || '[]');
       const m = JSON.parse(localStorage.getItem(STORAGE_KEYS.matches) || '[]');
       const c = JSON.parse(localStorage.getItem(STORAGE_KEYS.convocations) || '[]');
+      const r = JSON.parse(localStorage.getItem(STORAGE_KEYS.rivals) || '[]');
+      const mr = JSON.parse(localStorage.getItem(STORAGE_KEYS.matchResults) || '[]');
       if (Array.isArray(p)) players = p; else players = [];
       if (Array.isArray(s)) sessions = s; else sessions = [];
       if (Array.isArray(m)) matches = m; else matches = [];
       if (Array.isArray(c)) convocations = c; else convocations = [];
+      if (Array.isArray(r)) rivals = r; else rivals = [];
+      if (Array.isArray(mr)) matchResults = mr; else matchResults = [];
     } catch (e) {
       players = [];
       sessions = [];
       matches = [];
       convocations = [];
+      rivals = [];
+      matchResults = [];
     }
     // Normaliza: ordena jugadores por nombre
     players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
@@ -557,7 +567,7 @@
   // ---- Auth: control de visibilidad/edición ----
   function applyAuthRestrictions() {
     // Tabs restringidas
-    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos'];
+    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales','tab-calendario'];
     const allTabButtons = Array.from(document.querySelectorAll('.tab-btn'));
     allTabButtons.forEach(btn => {
       const target = btn.getAttribute('data-target');
@@ -632,6 +642,12 @@
     const btnResetData = document.getElementById('reset-data');
     if (btnResetData) {
       btnResetData.style.display = isAuthenticated ? '' : 'none';
+    }
+    
+    // Botón "Configuración" solo visible con sesión iniciada
+    const btnSettings = document.getElementById('open-settings');
+    if (btnSettings) {
+      btnSettings.style.display = isAuthenticated ? '' : 'none';
     }
     
     // Ajustar layout del footer según autenticación
@@ -1658,8 +1674,6 @@
         inputMatchYellows.value = '0';
         inputMatchReds.value = '0';
         inputMatchMinutes.value = '0';
-        
-        alert(`Datos actualizados para ${getPlayerName(playerId)} en ${formatDateHuman(date)}`);
         return;
       }
       
@@ -1749,6 +1763,12 @@
       
       renderMatchStats();
       renderRecentConvocations();
+      
+      // Cerrar la card después de guardar
+      closeCard('convocation-content');
+      
+      // Limpiar el formulario
+      inputConvocationDate.value = '';
     });
   }
 
@@ -1774,6 +1794,14 @@
     }
   });
 
+  // Event listener para cerrar modal de resultados de rivales
+  document.addEventListener('click', (e) => {
+    const rivalResultModal = document.getElementById('rival-result-modal');
+    if (rivalResultModal && !rivalResultModal.hidden && e.target === rivalResultModal) {
+      rivalResultModal.hidden = true;
+    }
+  });
+
   // Funcionalidad de cards colapsibles
   function setupCollapsibleCards() {
     const cardHeaders = document.querySelectorAll('.card-header[data-target]');
@@ -1790,12 +1818,706 @@
     });
   }
 
+  // Event listeners para rivales
+  const formAddRival = document.getElementById('form-add-rival');
+  if (formAddRival) {
+    formAddRival.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('rival-name').value.trim();
+      const field = document.getElementById('rival-field').value.trim();
+      const shieldFile = document.getElementById('rival-shield').files[0];
+      
+      if (!name || !field) {
+        alert('Por favor, completa al menos el nombre del equipo y el campo.');
+        return;
+      }
+      
+      // Convertir archivos a base64
+      const processFile = (file) => {
+        return new Promise((resolve) => {
+          if (!file) {
+            resolve(null);
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(file);
+        });
+      };
+      
+      Promise.all([
+        processFile(shieldFile)
+      ]).then(([shieldBase64]) => {
+        const rival = {
+          id: generateId('rival'),
+          name,
+          field,
+          shield: shieldBase64,
+          createdAt: Date.now()
+        };
+        
+        addRival(rival);
+        
+        // Limpiar formulario
+        formAddRival.reset();
+        
+        // Renderizar lista actualizada
+        renderRivalsList();
+      });
+    });
+  }
+
+  // Event listener para el formulario de resultados
+  const formRivalResult = document.getElementById('form-rival-result');
+  if (formRivalResult) {
+    formRivalResult.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      // Obtener el rival del modal
+      const rivalName = document.getElementById('rival-name-display').textContent;
+      const rival = rivals.find(r => r.name === rivalName);
+      
+      if (!rival) {
+        alert('Error: No se pudo identificar el rival.');
+        return;
+      }
+      
+      // Obtener todos los bloques de jornada
+      const journeyBlocks = document.querySelectorAll('.journey-block');
+      let hasValidJourney = false;
+      
+      // Eliminar jornadas existentes para este rival
+      matchResults = matchResults.filter(r => r.rivalId !== rival.id);
+      
+      // Procesar cada bloque de jornada
+      journeyBlocks.forEach((block, index) => {
+        const journeyNum = index + 1;
+        const journey = document.getElementById(`match-journey-${journeyNum}`).value;
+        const location = document.querySelector(`input[name="match-location-${journeyNum}"]:checked`)?.value;
+        const date = document.getElementById(`match-date-${journeyNum}`).value;
+        const result = document.getElementById(`match-result-${journeyNum}`).value.trim();
+        const comments = document.getElementById(`match-comments-${journeyNum}`).value.trim();
+        
+        // Validar que la jornada esté completa (solo jornada y local/visitante son obligatorios)
+        if (journey && location) {
+          hasValidJourney = true;
+          
+          const matchResult = {
+            id: generateId('result'),
+            rivalId: rival.id,
+            journey: journey,
+            location: location,
+            date: date || null,
+            result: result || null,
+            comments: comments || null,
+            createdAt: Date.now()
+          };
+          addMatchResult(matchResult);
+        }
+      });
+      
+      // Cerrar modal
+      document.getElementById('rival-result-modal').hidden = true;
+      
+      // Renderizar listas actualizadas
+      renderRivalsList();
+      renderCalendar();
+    });
+  }
+
+  // Event listener para cerrar modal de resultados
+  const btnRivalResultClose = document.getElementById('rival-result-close');
+  if (btnRivalResultClose) {
+    btnRivalResultClose.addEventListener('click', () => {
+      document.getElementById('rival-result-modal').hidden = true;
+    });
+  }
+
+  // Event listener para eliminar rival
+  const btnDeleteRival = document.getElementById('delete-rival-btn');
+  if (btnDeleteRival) {
+    btnDeleteRival.addEventListener('click', () => {
+      const rivalName = document.getElementById('rival-name-display').textContent;
+      const rival = rivals.find(r => r.name === rivalName);
+      
+      if (!rival) {
+        alert('Error: No se pudo identificar el rival.');
+        return;
+      }
+      
+      if (confirm(`¿Estás seguro de que quieres eliminar el equipo "${rival.name}"? Esta acción también eliminará todos los resultados asociados y no se puede deshacer.`)) {
+        // Eliminar rival
+        rivals = rivals.filter(r => r.id !== rival.id);
+        
+        // Eliminar todos los resultados asociados
+        matchResults = matchResults.filter(r => r.rivalId !== rival.id);
+        
+        // Guardar cambios
+        saveState();
+        
+        // Cerrar modal
+        document.getElementById('rival-result-modal').hidden = true;
+        
+        // Renderizar listas actualizadas
+        renderRivalsList();
+        renderCalendar();
+      }
+    });
+  }
+
+  // Función para cargar jornadas existentes
+  function loadExistingJourneys(rival) {
+    const existingResults = matchResults.filter(r => r.rivalId === rival.id);
+    
+    if (existingResults.length === 0) return;
+    
+    // Crear bloques adicionales si hay más de 1 jornada (ya tenemos 1 por defecto)
+    while (existingResults.length > document.querySelectorAll('.journey-block').length) {
+      addNewJourneyBlock();
+    }
+    
+    // Cargar datos en todos los bloques existentes
+    existingResults.forEach((result, index) => {
+      const journeyNum = index + 1;
+      
+      // Cargar jornada
+      const journeySelect = document.getElementById(`match-journey-${journeyNum}`);
+      if (journeySelect) journeySelect.value = result.journey;
+      
+      // Cargar local/visitante
+      const locationRadio = document.getElementById(`location-${result.location}-${journeyNum}`);
+      if (locationRadio) locationRadio.checked = true;
+      
+      // Cargar fecha (si existe)
+      const dateInput = document.getElementById(`match-date-${journeyNum}`);
+      if (dateInput && result.date) dateInput.value = result.date;
+      
+      // Cargar resultado (si existe)
+      const resultInput = document.getElementById(`match-result-${journeyNum}`);
+      if (resultInput && result.result) resultInput.value = result.result;
+      
+      // Cargar comentarios (si existen)
+      const commentsInput = document.getElementById(`match-comments-${journeyNum}`);
+      if (commentsInput && result.comments) commentsInput.value = result.comments;
+    });
+  }
+
+  // Lógica automática para Local/Visitante
+  function setupLocationLogic() {
+    // Obtener todos los bloques de jornada
+    const journeyBlocks = document.querySelectorAll('.journey-block');
+    
+    journeyBlocks.forEach((block, index) => {
+      const journeyNum = index + 1;
+      const locationLocal = block.querySelector(`input[id="location-local-${journeyNum}"]`);
+      const locationVisitante = block.querySelector(`input[id="location-visitante-${journeyNum}"]`);
+      
+      if (locationLocal && locationVisitante) {
+        // Limpiar event listeners anteriores
+        const newLocal = locationLocal.cloneNode(true);
+        const newVisitante = locationVisitante.cloneNode(true);
+        
+        // Reemplazar los elementos
+        if (locationLocal.parentNode) {
+          locationLocal.parentNode.replaceChild(newLocal, locationLocal);
+        }
+        if (locationVisitante.parentNode) {
+          locationVisitante.parentNode.replaceChild(newVisitante, locationVisitante);
+        }
+        
+        // Añadir nuevos event listeners
+        newLocal.addEventListener('change', () => {
+          if (newLocal.checked) {
+            // Si se selecciona Local en esta jornada, marcar Visitante en la siguiente
+            const nextBlock = journeyBlocks[index + 1];
+            if (nextBlock) {
+              const nextJourneyNum = journeyNum + 1;
+              const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
+              if (nextVisitante) {
+                nextVisitante.checked = true;
+                // Desmarcar Local en la siguiente
+                const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
+                if (nextLocal) nextLocal.checked = false;
+              }
+            }
+          }
+        });
+        
+        newVisitante.addEventListener('change', () => {
+          if (newVisitante.checked) {
+            // Si se selecciona Visitante en esta jornada, marcar Local en la siguiente
+            const nextBlock = journeyBlocks[index + 1];
+            if (nextBlock) {
+              const nextJourneyNum = journeyNum + 1;
+              const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
+              if (nextLocal) {
+                nextLocal.checked = true;
+                // Desmarcar Visitante en la siguiente
+                const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
+                if (nextVisitante) nextVisitante.checked = false;
+              }
+            }
+          }
+        });
+      }
+    });
+  }
+
   // Función para cerrar modales
   function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
       modal.hidden = true;
     }
+  }
+
+  // Función para cerrar cards colapsibles
+  function closeCard(cardContentId) {
+    const content = document.getElementById(cardContentId);
+    const header = document.querySelector(`[data-target="${cardContentId}"]`);
+    if (content && header) {
+      content.style.display = 'none';
+      header.classList.remove('expanded');
+    }
+  }
+
+  // ---- Rivales y Calendario ----
+  let rivals = [];
+  let matchResults = [];
+
+  // Función para añadir rival
+  function addRival(rival) {
+    rivals.push(rival);
+    rivals.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+    saveState();
+  }
+
+  // Función para añadir resultado de partido
+  function addMatchResult(result) {
+    matchResults.push(result);
+    // IMPORTANTE: No ordenar por fecha para mantener el orden de jornadas preestablecido
+    // Las jornadas se mantienen en el orden que el usuario marca en el formulario
+    saveState();
+  }
+
+  // Función para renderizar lista de rivales
+  function renderRivalsList() {
+    const rivalsList = document.getElementById('rivals-list');
+    const rivalsEmpty = document.getElementById('rivals-empty');
+    
+    if (!rivalsList || !rivalsEmpty) return;
+    
+    if (rivals.length === 0) {
+      rivalsEmpty.style.display = '';
+      rivalsList.innerHTML = '';
+      return;
+    }
+    
+    rivalsEmpty.style.display = 'none';
+    rivalsList.innerHTML = '';
+    
+    rivals.forEach(rival => {
+      const li = document.createElement('li');
+      li.className = 'rival-item';
+      li.onclick = () => {
+        console.log('Clic en rival:', rival.name);
+        openRivalResultModal(rival);
+      };
+      
+      const shield = document.createElement('img');
+      shield.className = 'rival-shield';
+      shield.src = rival.shield || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjMzQzNDM0Ii8+Cjx0ZXh0IHg9IjMwIiB5PSIzNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+U0hJRUxEPC90ZXh0Pgo8L3N2Zz4K';
+      shield.alt = `Escudo de ${rival.name}`;
+      
+      const info = document.createElement('div');
+      info.className = 'rival-info';
+      
+      const name = document.createElement('h3');
+      name.className = 'rival-name';
+      name.textContent = rival.name;
+      
+      const field = document.createElement('p');
+      field.className = 'rival-field';
+      field.textContent = rival.field;
+      
+      const journeys = document.createElement('div');
+      journeys.className = 'rival-journeys';
+      
+      // Mostrar jornadas programadas
+      const rivalResults = matchResults.filter(r => r.rivalId === rival.id);
+      rivalResults.forEach(result => {
+        const badge = document.createElement('span');
+        badge.className = `journey-badge ${result.location}`;
+        if (result.journey === 'A') {
+          badge.textContent = `A`;
+        } else {
+          badge.textContent = `J${result.journey}`;
+        }
+        journeys.appendChild(badge);
+      });
+      
+      info.appendChild(name);
+      info.appendChild(field);
+      info.appendChild(journeys);
+      
+      li.appendChild(shield);
+      li.appendChild(info);
+      rivalsList.appendChild(li);
+    });
+  }
+
+  // Función para abrir modal de resultado
+  function openRivalResultModal(rival) {
+    console.log('Abriendo modal para rival:', rival.name);
+    
+    const modal = document.getElementById('rival-result-modal');
+    const shieldDisplay = document.getElementById('rival-shield-display');
+    const nameDisplay = document.getElementById('rival-name-display');
+    const fieldDisplay = document.getElementById('rival-field-display');
+    
+    console.log('Elementos del modal:', { modal, shieldDisplay, nameDisplay, fieldDisplay });
+    
+    if (!modal || !shieldDisplay || !nameDisplay || !fieldDisplay) {
+      console.error('Faltan elementos del modal');
+      return;
+    }
+    
+    // Actualizar información del rival
+    shieldDisplay.src = rival.shield || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiBmaWxsPSIjMzQzNDM0Ii8+Cjx0ZXh0IHg9IjMwIiB5PSIzNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjMwIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+U0hJRUxEPC90ZXh0Pgo8L3N2Zz4K';
+    nameDisplay.textContent = rival.name;
+    fieldDisplay.textContent = rival.field;
+    
+    // Limpiar formulario
+    document.getElementById('form-rival-result').reset();
+    
+    // Cargar jornadas existentes si las hay
+    loadExistingJourneys(rival);
+    
+    // Configurar lógica automática de Local/Visitante
+    setupLocationLogic();
+    
+    // Configurar botón para añadir partido
+    setupAddMatchButton();
+    
+    // Configurar botón de eliminar para el primer partido
+    setupDeletePartidoButton(1);
+    
+    // Mostrar modal
+    console.log('Mostrando modal, hidden antes:', modal.hidden);
+    modal.hidden = false;
+    console.log('Modal hidden después:', modal.hidden);
+    console.log('Modal display:', modal.style.display);
+  }
+
+  // Función para renderizar calendario
+  function renderCalendar() {
+    const calendarList = document.getElementById('calendar-list');
+    const calendarEmpty = document.getElementById('calendar-empty');
+    
+    if (!calendarList || !calendarEmpty) return;
+    
+    if (matchResults.length === 0) {
+      calendarEmpty.style.display = '';
+      calendarList.innerHTML = '';
+      return;
+    }
+    
+    calendarEmpty.style.display = 'none';
+    calendarList.innerHTML = '';
+    
+    // Agrupar resultados por rival y mantener orden de jornadas
+    const rivalGroups = {};
+    matchResults.forEach(result => {
+      if (!rivalGroups[result.rivalId]) {
+        rivalGroups[result.rivalId] = [];
+      }
+      rivalGroups[result.rivalId].push(result);
+    });
+    
+    // Ordenar por rival y luego por jornada (manteniendo el orden preestablecido)
+    Object.keys(rivalGroups).forEach(rivalId => {
+      const rival = rivals.find(r => r.id === rivalId);
+      if (!rival) return;
+      
+      // Ordenar por jornada (mantener orden preestablecido)
+      rivalGroups[rivalId].sort((a, b) => a.journey - b.journey);
+    });
+    
+    // Ahora ordenar todos los resultados por fecha (de más antigua a más reciente)
+    const allResults = [];
+    Object.keys(rivalGroups).forEach(rivalId => {
+      rivalGroups[rivalId].forEach(result => {
+        allResults.push(result);
+      });
+    });
+    
+    // Ordenar por fecha, poniendo los que no tienen fecha al final
+    allResults.sort((a, b) => {
+      if (!a.date && !b.date) return 0; // Ambos sin fecha, mantener orden
+      if (!a.date) return 1; // A sin fecha, poner al final
+      if (!b.date) return -1; // B sin fecha, poner al final
+      return new Date(a.date) - new Date(b.date); // Ordenar por fecha (antigua primero)
+    });
+    
+    allResults.forEach(result => {
+      const rival = rivals.find(r => r.id === result.rivalId);
+      if (!rival) return;
+      
+      const item = document.createElement('div');
+      item.className = 'calendar-item';
+      
+      const date = document.createElement('div');
+      date.className = 'calendar-date';
+      
+      if (result.date) {
+        const resultDate = new Date(result.date);
+        const day = document.createElement('div');
+        day.className = 'day';
+        day.textContent = resultDate.getDate();
+        
+        const month = document.createElement('div');
+        month.className = 'month';
+        month.textContent = resultDate.toLocaleDateString('es-ES', { month: 'short' });
+        
+        date.appendChild(day);
+        date.appendChild(month);
+      } else {
+        // Si no hay fecha, mostrar solo la jornada
+        const day = document.createElement('div');
+        day.className = 'day';
+        day.textContent = `J${result.journey}`;
+        
+        const month = document.createElement('div');
+        month.className = 'month';
+        month.textContent = 'Sin fecha';
+        
+        date.appendChild(day);
+        date.appendChild(month);
+      }
+        
+      const match = document.createElement('div');
+      match.className = 'calendar-match';
+      
+      const rivalName = document.createElement('h3');
+      rivalName.className = 'calendar-rival';
+      rivalName.textContent = rival.name;
+      
+      const details = document.createElement('p');
+      details.className = 'calendar-details';
+      if (result.journey === 'A') {
+        details.textContent = `Amistoso - ${result.location === 'local' ? 'Local' : 'Visitante'}`;
+      } else {
+        details.textContent = `Jornada ${result.journey} - ${result.location === 'local' ? 'Local' : 'Visitante'}`;
+      }
+      
+      match.appendChild(rivalName);
+      match.appendChild(details);
+      
+      const resultDisplay = document.createElement('div');
+      resultDisplay.className = 'calendar-result';
+      resultDisplay.textContent = result.result || 'Sin resultado';
+      
+      item.appendChild(date);
+      item.appendChild(match);
+      item.appendChild(resultDisplay);
+      
+      calendarList.appendChild(item);
+    });
+  }
+
+  // Función para configurar el botón de añadir partido
+  function setupAddMatchButton() {
+    const addMatchBtn = document.getElementById('add-match-btn');
+    if (!addMatchBtn) return;
+    
+    // Limpiar event listeners anteriores
+    const newAddMatchBtn = addMatchBtn.cloneNode(true);
+    addMatchBtn.parentNode.replaceChild(newAddMatchBtn, addMatchBtn);
+    
+    newAddMatchBtn.addEventListener('click', () => {
+      addNewJourneyBlock();
+    });
+  }
+
+  // Función para configurar botón de eliminar partido
+  function setupDeletePartidoButton(partidoNumber) {
+    const deleteBtn = document.querySelector(`[data-partido="${partidoNumber}"]`);
+    if (!deleteBtn) return;
+    
+    deleteBtn.addEventListener('click', () => {
+      deletePartido(partidoNumber);
+    });
+  }
+
+  // Función para eliminar un partido específico
+  function deletePartido(partidoNumber) {
+    const modalContent = document.querySelector('#rival-result-modal .modal-content');
+    const journeyBlocks = modalContent.querySelectorAll('.journey-block');
+    
+    // No permitir eliminar si solo queda un partido
+    if (journeyBlocks.length <= 1) {
+      alert('No se puede eliminar el último partido. Debe haber al menos uno.');
+      return;
+    }
+    
+    const partidoBlock = modalContent.querySelector(`[data-partido="${partidoNumber}"]`).closest('.journey-block');
+    
+    if (!partidoBlock) return;
+    
+    // Confirmar eliminación
+    if (confirm(`¿Estás seguro de que quieres eliminar el Partido ${partidoNumber}?`)) {
+      partidoBlock.remove();
+      
+      // Renumerar los partidos restantes
+      renumberPartidos();
+      
+      // Reconfigurar la lógica de Local/Visitante
+      setupLocationLogic();
+    }
+  }
+
+  // Función para renumerar los partidos después de eliminar uno
+  function renumberPartidos() {
+    const journeyBlocks = document.querySelectorAll('.journey-block');
+    
+    journeyBlocks.forEach((block, index) => {
+      const newNumber = index + 1;
+      const header = block.querySelector('.journey-header');
+      const title = header.querySelector('h4');
+      const deleteBtn = header.querySelector('.delete-partido-btn');
+      
+      // Actualizar título
+      title.textContent = `Partido ${newNumber}`;
+      
+      // Actualizar botón de eliminar
+      deleteBtn.setAttribute('data-partido', newNumber);
+      deleteBtn.title = `Eliminar partido ${newNumber}`;
+      
+      // Actualizar IDs de los campos
+      const journeySelect = block.querySelector('select[id^="match-journey-"]');
+      const locationLocal = block.querySelector('input[id^="location-local-"]');
+      const locationVisitante = block.querySelector('input[id^="location-visitante-"]');
+      const dateInput = block.querySelector('input[id^="match-date-"]');
+      const resultInput = block.querySelector('input[id^="match-result-"]');
+      const commentsInput = block.querySelector('textarea[id^="match-comments-"]');
+      
+      if (journeySelect) journeySelect.id = `match-journey-${newNumber}`;
+      if (locationLocal) {
+        locationLocal.id = `location-local-${newNumber}`;
+        locationLocal.name = `match-location-${newNumber}`;
+      }
+      if (locationVisitante) {
+        locationVisitante.id = `location-visitante-${newNumber}`;
+        locationVisitante.name = `match-location-${newNumber}`;
+      }
+      if (dateInput) dateInput.id = `match-date-${newNumber}`;
+      if (resultInput) resultInput.id = `match-result-${newNumber}`;
+      if (commentsInput) commentsInput.id = `match-comments-${newNumber}`;
+      
+      // Reconfigurar el botón de eliminar
+      setupDeletePartidoButton(newNumber);
+    });
+  }
+
+  // Función para añadir nuevo bloque de jornada
+  function addNewJourneyBlock() {
+    const modalContent = document.querySelector('#rival-result-modal .modal-content');
+    const existingJourneyBlocks = modalContent.querySelectorAll('.journey-block');
+    const modalActions = modalContent.querySelector('.modal-actions');
+    
+    if (!modalContent || !modalActions) return;
+    
+    // Crear nuevo bloque de jornada
+    const newJourneyBlock = document.createElement('div');
+    newJourneyBlock.className = 'journey-block';
+    
+    const journeyNumber = existingJourneyBlocks.length + 1;
+    newJourneyBlock.innerHTML = `
+      <div class="journey-header">
+        <h4>Partido ${journeyNumber}</h4>
+        <button type="button" class="btn-icon delete-partido-btn" data-partido="${journeyNumber}" title="Eliminar partido">
+          🗑️
+        </button>
+      </div>
+      <div class="match-info">
+        <label>
+          <span>Jornada</span>
+          <select id="match-journey-${journeyNumber}" required>
+            <option value="">Seleccionar jornada</option>
+            <option value="A">Amistoso</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+            <option value="15">15</option>
+            <option value="16">16</option>
+            <option value="17">17</option>
+            <option value="18">18</option>
+            <option value="19">19</option>
+            <option value="20">20</option>
+            <option value="21">21</option>
+            <option value="22">22</option>
+            <option value="23">23</option>
+            <option value="24">24</option>
+            <option value="25">25</option>
+            <option value="26">26</option>
+            <option value="27">27</option>
+            <option value="28">28</option>
+            <option value="29">29</option>
+            <option value="30">30</option>
+          </select>
+        </label>
+        <label>
+          <span>Local/Visitante</span>
+          <div class="radio-group">
+            <div class="radio">
+              <input type="radio" id="location-local-${journeyNumber}" name="match-location-${journeyNumber}" value="local" required />
+              <label for="location-local-${journeyNumber}">Local</label>
+            </div>
+            <div class="radio">
+              <input type="radio" id="location-visitante-${journeyNumber}" name="match-location-${journeyNumber}" value="visitante" />
+              <label for="location-local-${journeyNumber}">Visitante</label>
+            </div>
+          </div>
+        </label>
+      </div>
+      
+      <div class="result-info">
+        <label>
+          <span>Fecha del partido</span>
+          <input id="match-date-${journeyNumber}" name="match-date-${journeyNumber}" type="date" />
+        </label>
+        <label>
+          <span>Resultado</span>
+          <input id="match-result-${journeyNumber}" name="match-result-${journeyNumber}" type="text" placeholder="Ej: 2-1, 0-0, 3-2" />
+        </label>
+      </div>
+      
+      <label>
+        <span>Comentarios</span>
+        <textarea id="match-comments-${journeyNumber}" name="match-comments-${journeyNumber}" rows="3" placeholder="Información sobre el partido, rival, etc."></textarea>
+      </label>
+    `;
+    
+    // Insertar antes de los botones de acción
+    modalActions.parentNode.insertBefore(newJourneyBlock, modalActions);
+    
+    // Configurar la lógica automática de Local/Visitante para el nuevo bloque
+    setupLocationLogic();
+    
+    // Configurar el botón de eliminar para el nuevo bloque
+    setupDeletePartidoButton(journeyNumber);
   }
 
   // Función para buscar entrada de partido por jugador y fecha
@@ -1916,6 +2638,9 @@
     // Convocatorias
     renderConvocationList();
     renderRecentConvocations();
+    // Rivales y Calendario
+    renderRivalsList();
+    renderCalendar();
   }
 
   function init() {
@@ -1945,6 +2670,8 @@
       initFirebaseIfEnabled();
     }
   }
+
+
 
   document.addEventListener('DOMContentLoaded', init);
 })();

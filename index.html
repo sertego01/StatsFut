@@ -23,6 +23,10 @@
           <button class="tab-btn" data-target="tab-partidos">Partidos</button>
           <button class="tab-btn" data-target="tab-estadisticas-partidos">Estadísticas</button>
         </div>
+        <div class="tabs-row cols-2">
+          <button class="tab-btn" data-target="tab-rivales">Rivales</button>
+          <button class="tab-btn" data-target="tab-calendario">Calendario</button>
+        </div>
       </nav>
     </header>
 
@@ -198,6 +202,53 @@
             <div id="mstats-empty" class="empty-state is-hidden">No hay registros de partido.</div>
           </div>
         </div>
+
+        <div class="card" id="recent-match-entries-card">
+          <h3>Registros recientes</h3>
+          <ul id="recent-match-entries" class="list"></ul>
+        </div>
+
+        <div class="card" id="recent-convocations-card">
+          <h3>Convocatorias recientes</h3>
+          <ul id="recent-convocations" class="list"></ul>
+        </div>
+      </section>
+
+      <section id="tab-rivales" class="tab-section">
+        <div class="card">
+          <h2>Añadir rival</h2>
+          <form id="form-add-rival" class="form-grid" autocomplete="off">
+            <label>
+              <span>Nombre del equipo</span>
+              <input id="rival-name" type="text" placeholder="Nombre del rival" required />
+            </label>
+            <label>
+              <span>Campo donde juegan</span>
+              <input id="rival-field" type="text" placeholder="Nombre del campo" required />
+            </label>
+            <label>
+              <span>Escudo</span>
+              <input id="rival-shield" type="file" accept="image/*" />
+            </label>
+            <button type="submit" class="btn primary">Añadir rival</button>
+          </form>
+        </div>
+        
+
+
+        <div class="card">
+          <h2>Lista de rivales</h2>
+          <div id="rivals-empty" class="empty-state">No hay rivales registrados.</div>
+          <ul id="rivals-list" class="list"></ul>
+        </div>
+      </section>
+
+      <section id="tab-calendario" class="tab-section">
+        <div class="card">
+          <h2>Calendario de partidos</h2>
+          <div id="calendar-empty" class="empty-state">No hay partidos programados.</div>
+          <div id="calendar-list"></div>
+        </div>
       </section>
     </main>
 
@@ -271,6 +322,104 @@
           <button type="button" id="login-close" class="btn">Cerrar</button>
         </form>
         <div id="login-error" class="empty-state" style="color:#fca5a5;"></div>
+      </div>
+    </div>
+
+    <div id="rival-result-modal" class="modal" hidden>
+      <div class="modal-content">
+        <h3>Gestionar partidos del rival</h3>
+        <form id="form-rival-result" class="form-grid">
+          <div class="rival-info">
+            <img id="rival-shield-display" src="" alt="Escudo del rival" style="width: 50px; height: 50px; object-fit: contain;">
+            <h4 id="rival-name-display"></h4>
+            <p id="rival-field-display"></p>
+          </div>
+          
+          <!-- Primer partido -->
+          <div class="journey-block">
+            <div class="journey-header">
+              <h4>Partido 1</h4>
+              <button type="button" class="btn-icon delete-partido-btn" data-partido="1" title="Eliminar partido">
+                🗑️
+              </button>
+            </div>
+            <div class="match-info">
+              <label>
+                <span>Jornada</span>
+                <select id="match-journey-1" required>
+                  <option value="">Seleccionar jornada</option>
+                  <option value="A">Amistoso (A)</option>
+                  <option value="1">Jornada 1</option>
+                  <option value="2">Jornada 2</option>
+                  <option value="3">Jornada 3</option>
+                  <option value="4">Jornada 4</option>
+                  <option value="5">Jornada 5</option>
+                  <option value="6">Jornada 6</option>
+                  <option value="7">Jornada 7</option>
+                  <option value="8">Jornada 8</option>
+                  <option value="9">Jornada 9</option>
+                  <option value="10">Jornada 10</option>
+                  <option value="11">Jornada 11</option>
+                  <option value="12">Jornada 12</option>
+                  <option value="13">Jornada 13</option>
+                  <option value="14">Jornada 14</option>
+                  <option value="15">Jornada 15</option>
+                  <option value="16">Jornada 16</option>
+                  <option value="17">Jornada 17</option>
+                  <option value="18">Jornada 18</option>
+                  <option value="19">Jornada 19</option>
+                  <option value="20">Jornada 20</option>
+                  <option value="21">Jornada 21</option>
+                  <option value="22">Jornada 22</option>
+                  <option value="23">Jornada 23</option>
+                  <option value="24">Jornada 24</option>
+                  <option value="25">Jornada 25</option>
+                  <option value="26">Jornada 26</option>
+                  <option value="27">Jornada 27</option>
+                  <option value="28">Jornada 28</option>
+                  <option value="29">Jornada 29</option>
+                  <option value="30">Jornada 30</option>
+                </select>
+              </label>
+              <label>
+                <span>Local/Visitante</span>
+                <div class="radio-group">
+                  <div class="radio">
+                    <input type="radio" id="location-local-1" name="match-location-1" value="local" required />
+                    <label for="location-local-1">Local</label>
+                  </div>
+                  <div class="radio">
+                    <input type="radio" id="location-visitante-1" name="match-location-1" value="visitante" />
+                    <label for="location-visitante-1">Visitante</label>
+                  </div>
+                </div>
+              </label>
+            </div>
+            
+            <div class="result-info">
+              <label>
+                <span>Fecha del partido</span>
+                <input id="match-date-1" type="date" />
+              </label>
+              <label>
+                <span>Resultado</span>
+                <input id="match-result-1" type="text" placeholder="Ej: 2-1, 0-0, 3-2" />
+              </label>
+            </div>
+            
+            <label>
+              <span>Comentarios</span>
+              <textarea id="match-comments-1" rows="3" placeholder="Información sobre el partido, rival, etc."></textarea>
+            </label>
+          </div>
+
+                           <div class="modal-actions">
+                   <button type="button" id="add-match-btn" class="btn secondary">Añadir partido</button>
+                   <button type="submit" class="btn primary">Guardar resultados</button>
+                   <button type="button" id="delete-rival-btn" class="btn danger">Eliminar equipo</button>
+                   <button type="button" id="rival-result-close" class="btn">Cerrar</button>
+                 </div>
+        </form>
       </div>
     </div>
 

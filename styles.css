@@ -111,6 +111,35 @@ select {
   background-repeat: no-repeat;
 }
 
+/* Input de archivo estilizado */
+input[type="file"] {
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  width: 100%;
+}
+
+input[type="file"]:hover {
+  border-color: var(--primary);
+}
+
+input[type="file"]::-webkit-file-upload-button {
+  background: var(--primary);
+  color: #052e2b;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+input[type="file"]::-webkit-file-upload-button:hover {
+  background: var(--primary-700);
+}
+
 /* Checkbox personalizado */
 .checklist input[type="checkbox"],
 input[type="checkbox"] {
@@ -165,6 +194,7 @@ input[type="checkbox"]:checked::after {
 }
 .btn.primary { background: linear-gradient(180deg, var(--primary), var(--primary-700)); color: #052e2b; border: none; font-weight: 600; }
 .btn.danger { background: #2a1414; color: #fecaca; border: 1px solid #7f1d1d; }
+.btn.secondary { background: #6c757d; color: white; border: 1px solid #5a6268; }
 .btn.file-btn { position: relative; overflow: hidden; }
 .btn.file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
@@ -344,6 +374,225 @@ table.table th { color: var(--muted); font-weight: 500; }
   height: 1px;
   background: var(--border);
   margin: 16px 0;
+}
+
+/* Estilos para rivales */
+.rival-item {
+  display: flex !important; /* Sobrescribir display: grid de .list li */
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  grid-template-columns: unset !important; /* Eliminar grid-template-columns */
+}
+
+.rival-item:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.rival-shield {
+  height: 150px;
+  width: 150px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px;
+}
+
+.rival-info {
+  flex: 1;
+  margin-top: 16px;
+}
+
+.rival-name {
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px 0;
+}
+
+.rival-field {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.9em;
+}
+
+.rival-journeys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.journey-badge {
+  background: var(--primary);
+  color: #052e2b;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.journey-badge.local {
+  background: var(--primary);
+}
+
+.journey-badge.visitante {
+  background: #6b7280;
+}
+
+/* Estilos para el modal de resultados */
+.rival-info {
+  text-align: center;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--panel);
+  border-radius: 8px;
+}
+
+.rival-info img {
+  margin: 0 auto 12px;
+  display: block;
+}
+
+.rival-info h4 {
+  margin: 0 0 8px 0;
+  color: var(--text);
+}
+
+.rival-info p {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Bloques de jornadas */
+.journey-block {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.journey-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: 8px;
+}
+
+.journey-block h4 {
+  margin: 0;
+  color: var(--primary);
+  font-size: 1.1em;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2em;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.delete-partido-btn {
+  color: #ef4444;
+}
+
+.delete-partido-btn:hover {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.match-info, .result-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* Acciones del modal */
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.modal-actions .btn {
+  width: 100%;
+  min-width: unset;
+}
+
+/* Estilos para el calendario */
+.calendar-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.calendar-date {
+  background: var(--primary);
+  color: #052e2b;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: center;
+  min-width: 80px;
+}
+
+.calendar-date .day {
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.calendar-date .month {
+  font-size: 0.8em;
+  text-transform: uppercase;
+}
+
+.calendar-match {
+  flex: 1;
+  text-align: center;
+}
+
+.calendar-rival {
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px 0;
+}
+
+.calendar-details {
+  color: var(--muted);
+  font-size: 0.9em;
+  margin: 0;
+}
+
+.calendar-result {
+  background: var(--panel);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 
