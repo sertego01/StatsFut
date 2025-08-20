@@ -404,7 +404,7 @@
       // Iniciar sincronización sólo si hay sesión
       if (isAuthenticated) startCloudSync();
       
-      console.log('Firebase inicializado correctamente');
+
     } catch (error) {
       console.error('Error inicializando Firebase:', error);
       alert('Error al conectar con Firebase: ' + error.message);
@@ -417,7 +417,7 @@
     if (cloudSyncStarted) return;
     cloudSyncStarted = true;
 
-    console.log('Iniciando sincronización en la nube...');
+
 
     // Sincronizar jugadores
     cloud.db.collection('players').onSnapshot((snapshot) => {
@@ -453,6 +453,9 @@
       renderMatchPlayerForm();
       renderMatchStats();
       renderRecentMatchEntries();
+      
+      // Mostrar mensaje de datos cargados
+
     });
 
     // Sincronizar sesiones
@@ -517,7 +520,7 @@
       renderRecentMatchEntries();
     });
 
-    console.log('Sincronización en la nube iniciada');
+
   }
 
   // Sincronizar datos locales a la nube
@@ -525,7 +528,7 @@
     if (!cloud.enabled || !cloud.db) return;
     if (!isAuthenticated) return;
     
-    console.log('Sincronizando datos locales a la nube...');
+
     
     try {
       // Marcar que estamos aplicando cambios de la nube
@@ -555,7 +558,7 @@
       });
       await matchesBatch.commit();
       
-      console.log('Datos sincronizados a la nube correctamente');
+
     } catch (error) {
       console.error('Error sincronizando a la nube:', error);
       alert('Error al sincronizar datos: ' + error.message);
@@ -734,7 +737,7 @@
       } else {
         // Si no hay configuración guardada, usar la por defecto
         cloud.firebaseConfig = DEFAULT_FIREBASE_CONFIG;
-        console.log('Usando configuración de Firebase por defecto');
+
       }
     } catch (error) {
       console.error('Error cargando configuración de la nube:', error);
@@ -1501,15 +1504,105 @@
   // ---- Exportar / Importar / Reset ----
   // Exportar/Importar eliminados según solicitud
 
-  btnReset.addEventListener('click', () => {
-    const ok = confirm('Esto borrará todos los jugadores, entrenamientos y partidos guardados en este navegador. ¿Continuar?');
+  btnReset.addEventListener('click', async () => {
+    // ⚠️ CONFIRMACIÓN CRÍTICA: Borrado total de la base de datos
+    const ok = confirm(
+      '🚨 ¡ATENCIÓN! Esto borrará ABSOLUTAMENTE TODO:\n\n' +
+      '⚠️ Esta acción NO SE PUEDE DESHACER\n' +
+      '⚠️ Los datos se perderán PERMANENTEMENTE\n\n' +
+      '¿Estás 100% seguro de que quieres continuar?'
+    );
+    
     if (!ok) return;
-    localStorage.removeItem(STORAGE_KEYS.players);
-    localStorage.removeItem(STORAGE_KEYS.sessions);
-    localStorage.removeItem(STORAGE_KEYS.matches);
-    localStorage.removeItem(STORAGE_KEYS.lastSelectedDate);
-    loadState();
-    renderAll();
+    
+    // Tercera confirmación: escribir "BORRAR" para confirmar
+    const userInput = prompt(
+      '🚨 CONFIRMACIÓN FINAL CRÍTICA:\n\n' +
+      'Para confirmar que quieres ELIMINAR TODA LA BASE DE DATOS,\n' +
+      'escribe exactamente la palabra: BORRAR\n\n' +
+      'Esta es tu última oportunidad de cancelar.'
+    );
+    
+    if (userInput !== 'BORRAR') {
+      alert('❌ Operación cancelada. La base de datos está a salvo.');
+      return;
+    }
+    
+    try {
+      // Cambiar texto del botón
+      btnReset.textContent = '🗑️ Borrando todo...';
+      btnReset.disabled = true;
+      
+      // 1. BORRAR DE FIREBASE (si está disponible)
+      if (cloud.enabled && cloud.db && isAuthenticated) {
+        // Borrar todas las colecciones
+        const collections = [
+          { name: 'players', description: 'Jugadores' },
+          { name: 'sessions', description: 'Sesiones de entrenamiento' },
+          { name: 'matchEntries', description: 'Entradas de partidos' },
+          { name: 'convocations', description: 'Convocatorias' },
+          { name: 'rivals', description: 'Rivales' },
+          { name: 'matchResults', description: 'Resultados de partidos' }
+        ];
+        
+        let totalDeleted = 0;
+        
+        for (const collection of collections) {
+          try {
+            const snapshot = await cloud.db.collection(collection.name).get();
+            const batch = cloud.db.batch();
+            
+            snapshot.docs.forEach(doc => {
+              batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+            totalDeleted += snapshot.docs.length;
+          } catch (error) {
+            console.error(`❌ Error borrando ${collection.description}:`, error);
+          }
+        }
+      }
+      
+      // 2. BORRAR DEL LOCALSTORAGE
+      const keysToRemove = [
+        STORAGE_KEYS.players,
+        STORAGE_KEYS.sessions,
+        STORAGE_KEYS.matches,
+        STORAGE_KEYS.convocations,
+        STORAGE_KEYS.rivals,
+        STORAGE_KEYS.matchResults,
+        STORAGE_KEYS.lastSelectedDate
+      ];
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+      });
+      
+      // 3. RESETEAR VARIABLES EN MEMORIA
+      players = [];
+      sessions = [];
+      matches = [];
+      convocations = [];
+      rivals = [];
+      matchResults = [];
+      
+      // 4. MOSTRAR MENSAJE DE ÉXITO DETALLADO
+      const firebaseStatus = cloud.enabled && cloud.db && isAuthenticated ? '✅ Firebase (nube)' : '⚠️ Firebase (no disponible)';
+      
+      // 5. RECARGAR LA PÁGINA
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+      
+    } catch (error) {
+      console.error('❌ Error durante el borrado:', error);
+      alert('❌ Error durante el borrado: ' + error.message);
+      
+      // Restaurar botón
+      btnReset.textContent = 'Borrar todo';
+      btnReset.disabled = false;
+    }
   });
 
   // Configuración
@@ -1567,6 +1660,32 @@
         } finally {
           btnSyncToCloud.textContent = 'Sincronizar datos a la nube';
           btnSyncToCloud.disabled = false;
+        }
+      });
+    }
+
+    // Botón de limpieza del localStorage
+    const btnClearLocalStorage = document.getElementById('clear-local-storage');
+    if (btnClearLocalStorage) {
+      btnClearLocalStorage.addEventListener('click', () => {
+        if (confirm('⚠️ ¿Estás seguro de que quieres limpiar el localStorage?\n\nEsto eliminará todos los datos duplicados y forzará la recarga desde Firebase.\n\nLos datos de la nube NO se perderán.')) {
+          try {
+            btnClearLocalStorage.textContent = 'Limpiando...';
+            btnClearLocalStorage.disabled = true;
+            
+            // Limpiar localStorage
+            clearLocalStorageData();
+            
+            // Recargar página para aplicar cambios
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+            
+          } catch (error) {
+            alert('Error al limpiar: ' + error.message);
+            btnClearLocalStorage.textContent = '🧹 Limpiar localStorage (Eliminar duplicados)';
+            btnClearLocalStorage.disabled = false;
+          }
         }
       });
     }
@@ -1844,14 +1963,33 @@
   // Funcionalidad de cards colapsibles
   function setupCollapsibleCards() {
     const cardHeaders = document.querySelectorAll('.card-header[data-target]');
-    cardHeaders.forEach(header => {
+    
+    cardHeaders.forEach((header, index) => {
+      // Añadir indicador visual de que es clickeable
+      header.style.cursor = 'pointer';
+      header.style.userSelect = 'none';
+      
+      // Configurar estado inicial (cerrado por defecto)
+      const targetId = header.getAttribute('data-target');
+      const content = document.getElementById(targetId);
+      if (content) {
+        content.style.display = 'none';
+        header.classList.remove('expanded');
+      }
+      
+      // Configurar event listener
       header.addEventListener('click', () => {
         const targetId = header.getAttribute('data-target');
         const content = document.getElementById(targetId);
+        
         if (content) {
           const isExpanded = content.style.display !== 'none';
+          
+          // Cambiar estado
           content.style.display = isExpanded ? 'none' : 'block';
           header.classList.toggle('expanded', !isExpanded);
+        } else {
+          console.error(`❌ No se encontró el contenido para: ${targetId}`);
         }
       });
     });
@@ -2293,11 +2431,11 @@
     
     // Configurar TODOS los botones de eliminar y validaciones existentes
     const allJourneyBlocks = document.querySelectorAll('.journey-block');
-    console.log(`Configurando ${allJourneyBlocks.length} bloques de jornada al abrir modal`);
+
     
     allJourneyBlocks.forEach((block, index) => {
       const journeyNum = index + 1;
-      console.log(`Configurando bloque ${journeyNum}`);
+      
       setupDeletePartidoButton(journeyNum);
       setupJourneyValidation(block);
     });
@@ -2609,7 +2747,7 @@
 
   // Función para eliminar un partido específico
   function deletePartido(partidoNumber) {
-    console.log(`Intentando eliminar partido ${partidoNumber}`);
+
     
     const modalContent = document.querySelector('#rival-result-modal .modal-content');
     if (!modalContent) {
@@ -2618,7 +2756,7 @@
     }
     
     const journeyBlocks = modalContent.querySelectorAll('.journey-block');
-    console.log(`Bloques de jornada encontrados: ${journeyBlocks.length}`);
+
     
     // No permitir eliminar si solo queda un partido
     if (journeyBlocks.length <= 1) {
@@ -2705,7 +2843,7 @@
       }
     });
     
-    console.log(`Renumeración completada. Bloques restantes: ${journeyBlocks.length}`);
+
   }
 
   // Función para añadir nuevo bloque de jornada
@@ -2915,27 +3053,85 @@
 
   // No hay fecha ni filtros de partidos en este modo
 
+  // ---- Limpieza del localStorage ----
+  function clearLocalStorageData() {
+    // Contador de elementos eliminados
+    let deletedCount = 0;
+    
+    // Lista de todas las claves a eliminar
+    const keysToRemove = [
+      STORAGE_KEYS.players,
+      STORAGE_KEYS.sessions,
+      STORAGE_KEYS.matches,
+      STORAGE_KEYS.convocations,
+      STORAGE_KEYS.rivals,
+      STORAGE_KEYS.matchResults,
+      STORAGE_KEYS.lastSelectedDate
+    ];
+    
+    // Eliminar cada clave
+    keysToRemove.forEach(key => {
+      if (localStorage.getItem(key)) {
+        localStorage.removeItem(key);
+        deletedCount++;
+      }
+    });
+    
+    // Limpiar también configuraciones antiguas que puedan causar conflictos
+    const oldKeys = [
+      'asistencia_config',
+      'asistencia_players_old',
+      'asistencia_sessions_old',
+      'asistencia_matches_old'
+    ];
+    
+    oldKeys.forEach(key => {
+      if (localStorage.getItem(key)) {
+        localStorage.removeItem(key);
+        deletedCount++;
+      }
+    });
+    
+    // Resetear variables en memoria
+    players = [];
+    sessions = [];
+    matches = [];
+    convocations = [];
+    rivals = [];
+    matchResults = [];
+    
+  }
+
   // ---- Inicialización ----
   function renderAll() {
-    renderPlayersList();
-    // Intenta mantener la fecha seleccionada
-    renderAttendanceList();
-    renderStats();
-    renderRecentSessions();
-    // Partidos (form por jugador)
-    renderMatchPlayerForm();
-    renderMatchStats();
-    renderRecentMatchEntries();
-    // Convocatorias
-    renderConvocationList();
-    renderRecentConvocations();
-    // Rivales y Calendario
-    renderRivalsList();
-    renderCalendar();
+    // 🚫 NO renderizar datos hasta que Firebase esté listo
+    // Los datos se cargarán automáticamente desde la nube
+    
+    // Solo renderizar elementos que no dependan de datos
+    setupCollapsibleCards();
+    applyThemeFromConfig();
+    
+    // Mostrar mensaje de carga con información sobre la limpieza
+    const loadingMessage = `
+      <div class="loading">
+        <div style="margin-bottom: 10px;">🔄 Cargando datos desde la nube...</div>
+        <div style="font-size: 0.9em; color: #888;">
+          💡 <strong>localStorage limpiado automáticamente</strong><br>
+          Se eliminaron datos duplicados para evitar conflictos
+        </div>
+      </div>
+    `;
+    
+    if (document.getElementById('players-list')) {
+      document.getElementById('players-list').innerHTML = loadingMessage;
+    }
   }
 
   function init() {
-    loadState();
+    // 🧹 LIMPIEZA AUTOMÁTICA: Eliminar datos duplicados del localStorage
+    clearLocalStorageData();
+    
+    // Cargar configuración (mantener tema, Firebase, etc.)
     loadConfig();
     loadCloudConfig();
     
@@ -2944,16 +3140,18 @@
     if (isFirstTime) {
       cloud.enabled = true;
       localStorage.setItem(STORAGE_KEYS_CLOUD.cloudEnabled, '1');
-      console.log('Primera vez: activando sincronización automáticamente');
+
     }
     
-    // Fecha por defecto
-    const lastDate = localStorage.getItem(STORAGE_KEYS.lastSelectedDate);
-    inputSessionDate.value = lastDate || todayISO();
+    // Fecha por defecto (usar fecha actual ya que limpiamos lastSelectedDate)
+    inputSessionDate.value = todayISO();
+    
+    // NO llamar a loadState() aquí - los datos vendrán de Firebase
+    // loadState(); // ❌ COMENTADO: Ya no cargamos datos del localStorage
+    
     renderAll();
     applyThemeFromConfig();
     setupAuthUI();
-    setupCollapsibleCards();
     applyAuthRestrictions();
 
     // Inicializar Firebase si está habilitado

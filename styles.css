@@ -302,7 +302,7 @@ input[type="checkbox"]:checked::after {
 
 .row-actions { display: flex; gap: 8px; }
 
-.empty-state { color: var(--muted); padding: 8px 0; }
+.empty-state { color: var(--muted); padding: 8px 0; text-align: center; }
 .empty-state.is-hidden { display: none; }
 
 .table-wrapper { overflow-x: auto; }
@@ -690,5 +690,92 @@ table.table th { color: var(--muted); font-weight: 500; }
   color: var(--text);
   text-align: center;
 }
+
+/* Estilos para mensajes de carga */
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--muted);
+  font-style: italic;
+  background: var(--panel);
+  border-radius: 8px;
+  margin: 10px 0;
+}
+
+.loading::before {
+  content: "🔄 ";
+  margin-right: 8px;
+}
+
+/* Animación de carga */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.loading {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Separador visual entre secciones */
+.section-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 24px 0;
+  gap: 16px;
+}
+
+.separator-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--border), transparent);
+}
+
+.separator-text {
+  color: var(--muted);
+  font-size: 0.9em;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+
+
+
+
+/* Estilos para cards colapsibles */
+.card-header[data-target] {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.card-header[data-target]:hover {
+  background: var(--panel);
+  border-radius: 8px 8px 0 0;
+}
+
+.card-header[data-target]:active {
+  transform: translateY(1px);
+}
+
+
+
+/* Estado expandido */
+.card-header.expanded {
+  background: var(--panel);
+  border-radius: 8px 8px 0 0;
+}
+
+/* Contenido de la card */
+.card-content {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+
 
 

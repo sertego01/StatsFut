@@ -115,7 +115,7 @@
       <section id="tab-partidos" class="tab-section">
         <div class="card collapsible">
           <h2 class="card-header" data-target="convocation-content">Registrar convocatoria</h2>
-          <div id="convocation-content" class="card-content" style="display: none;">
+          <div id="convocation-content" class="card-content">
             <form id="form-convocation" class="form-grid">
               <label>
                 <span>Fecha del partido</span>
@@ -133,8 +133,8 @@
         </div>
 
         <div class="card collapsible">
-          <h2 class="card-header" data-target="match-content">Registrar datos de partido</h2>
-          <div id="match-content" class="card-content" style="display: none;">
+          <h2 class="card-header" data-target="match-content">Registrar partido</h2>
+          <div id="match-content" class="card-content">
             <form id="form-match-player" class="form-grid">
               <label>
                 <span>Fecha del partido</span>
@@ -169,15 +169,23 @@
           </div>
         </div>
 
-        <div class="card">
-          <h3>Partidos recientes</h3>
-          <ul id="recent-match-entries" class="list"></ul>
+        <!-- Separador visual entre formularios y listas -->
+        <div class="section-separator">
+          <div class="separator-line"></div>
+          <div class="separator-text">Listas y registros</div>
+          <div class="separator-line"></div>
         </div>
 
         <div class="card">
           <h3>Convocatorias recientes</h3>
           <ul id="recent-convocations" class="list"></ul>
         </div>
+
+        <div class="card">
+          <h3>Partidos recientes</h3>
+          <ul id="recent-match-entries" class="list"></ul>
+        </div>
+
       </section>
 
       <section id="tab-estadisticas-partidos" class="tab-section">
@@ -213,11 +221,11 @@
           <h2>Añadir rival</h2>
           <form id="form-add-rival" class="form-grid" autocomplete="off">
             <label>
-              <span>Nombre del equipo</span>
+              <span>Nombre</span>
               <input id="rival-name" type="text" placeholder="Nombre del rival" required />
             </label>
             <label>
-              <span>Campo donde juegan</span>
+              <span>Campo</span>
               <input id="rival-field" type="text" placeholder="Nombre del campo" required />
             </label>
             <label>
@@ -272,6 +280,7 @@
             <small>Si no introduces configuración personalizada, la app usará automáticamente la configuración de Firebase preestablecida.</small>
           </div>
           <button type="button" id="sync-to-cloud" class="btn">Sincronizar datos a la nube</button>
+          <button type="button" id="clear-local-storage" class="btn" style="background: #dc3545; color: white;">🧹 Limpiar localStorage (Eliminar duplicados)</button>
           <label>
             <span>Minutos por partido</span>
             <input id="cfg-match-minutes" type="number" min="1" step="1" value="80" />
