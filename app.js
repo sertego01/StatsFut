@@ -1167,6 +1167,7 @@
       const li = document.createElement('li');
       li.classList.add('checklist-item');
       const nameDiv = document.createElement('div');
+      nameDiv.className = 'checklist-item-name';
       nameDiv.textContent = p.name;
       const right = document.createElement('div');
       const group = document.createElement('div');
