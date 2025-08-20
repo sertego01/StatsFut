@@ -507,7 +507,7 @@
             const isDuplicate = sessions.some(s => s.date === sessionData.date);
             
             if (!isDuplicate) {
-              sessions.push(sessionData);
+            sessions.push(sessionData);
             }
           }
         } else if (change.type === 'removed') {
@@ -564,7 +564,7 @@
             );
             
             if (!isDuplicate) {
-              matches.push(matchData);
+            matches.push(matchData);
             }
           }
         } else if (change.type === 'removed') {
@@ -1173,7 +1173,7 @@
       group.className = 'radio-group';
       const name = `att_${p.id}`;
       const current = attendanceStatuses[p.id] || 'A';
-      ['A','T','F','FJ'].forEach(code => {
+      ['A','F','FJ','T'].forEach(code => {
         const wrap = document.createElement('div');
         wrap.className = 'radio';
         const input = document.createElement('input');
@@ -1260,15 +1260,15 @@
       tdName.appendChild(nameBtn);
       const tdTotal = document.createElement('td'); tdTotal.textContent = String(r.total);
       const tdA = document.createElement('td'); tdA.textContent = String(r.A);
-      const tdT = document.createElement('td'); tdT.textContent = String(r.T);
       const tdF = document.createElement('td'); tdF.textContent = String(r.F);
       const tdFJ = document.createElement('td'); tdFJ.textContent = String(r.FJ);
+      const tdT = document.createElement('td'); tdT.textContent = String(r.T);
       tr.appendChild(tdName);
       tr.appendChild(tdTotal);
       tr.appendChild(tdA);
-      tr.appendChild(tdT);
       tr.appendChild(tdF);
       tr.appendChild(tdFJ);
+      tr.appendChild(tdT);
       statsTbody.appendChild(tr);
     });
   }
@@ -1384,7 +1384,7 @@
     const selectedDate = inputMatchDate.value;
     if (!selectedDate) {
       // Si no hay fecha seleccionada, mostrar todos los jugadores
-      selectMatchPlayer.innerHTML = '';
+    selectMatchPlayer.innerHTML = '';
       const defaultOpt = document.createElement('option');
       defaultOpt.value = '';
       defaultOpt.textContent = 'Selecciona una fecha primero';
@@ -1416,10 +1416,10 @@
     
     players.forEach(p => {
       if (convocation.players[p.id] === 'C') {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.name;
-        selectMatchPlayer.appendChild(opt);
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      selectMatchPlayer.appendChild(opt);
       }
     });
   }
@@ -1485,21 +1485,21 @@
     });
   }
 
-     function renderRecentMatchEntries() {
-     if (!recentMatchEntries) return;
-     const items = matches.slice(-10).reverse();
-     recentMatchEntries.innerHTML = '';
-     items.forEach(ent => {
-       const player = players.find(p => p.id === ent.playerId);
-       if (!player) return; // si el jugador fue eliminado, no mostrar entrada huérfana
+  function renderRecentMatchEntries() {
+    if (!recentMatchEntries) return;
+    const items = matches.slice(-10).reverse();
+    recentMatchEntries.innerHTML = '';
+    items.forEach(ent => {
+      const player = players.find(p => p.id === ent.playerId);
+      if (!player) return; // si el jugador fue eliminado, no mostrar entrada huérfana
        
-       const li = document.createElement('li');
+      const li = document.createElement('li');
        li.className = 'recent-match-item';
        
-       const left = document.createElement('div');
+      const left = document.createElement('div');
        left.className = 'match-info';
        
-       const right = document.createElement('div');
+      const right = document.createElement('div');
        right.className = 'match-actions';
        
        // Contenedor para nombre y fecha en la misma línea
@@ -1507,9 +1507,9 @@
        nameDateRow.className = 'name-date-row';
        
        // Nombre del jugador
-       const title = document.createElement('div');
+      const title = document.createElement('div');
        title.className = 'player-name';
-       title.textContent = player.name;
+      title.textContent = player.name;
        
        // Fecha del partido
        const date = document.createElement('div');
@@ -1524,32 +1524,32 @@
        nameDateRow.appendChild(title);
        nameDateRow.appendChild(date);
        left.appendChild(nameDateRow);
-       left.appendChild(meta);
+      left.appendChild(meta);
 
-             const btnDelete = document.createElement('button');
-       btnDelete.className = 'btn danger';
-       btnDelete.textContent = 'Eliminar';
-       btnDelete.addEventListener('click', () => {
+      const btnDelete = document.createElement('button');
+      btnDelete.className = 'btn danger';
+      btnDelete.textContent = 'Eliminar';
+      btnDelete.addEventListener('click', () => {
          // Confirmar eliminación antes de proceder
          if (confirm(`¿Estás seguro de que quieres eliminar el partido de ${player.name} del ${formatDateHuman(ent.date)}? Esta acción no se puede deshacer.`)) {
-           const idx = matches.findIndex(m => m === ent);
-           if (idx >= 0) {
-             const entryId = ent.id;
-             matches.splice(idx, 1);
-             saveState();
-             
-             // Sincronizar eliminación con Firebase
-             if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
-               cloud.db.collection('matchEntries').doc(entryId).delete().catch((error) => {
-                 console.error('Error eliminando entrada de partido de la nube:', error);
-               });
-             }
-             
-             renderMatchStats();
-             renderRecentMatchEntries();
+        const idx = matches.findIndex(m => m === ent);
+        if (idx >= 0) {
+          const entryId = ent.id;
+          matches.splice(idx, 1);
+          saveState();
+          
+          // Sincronizar eliminación con Firebase
+          if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+            cloud.db.collection('matchEntries').doc(entryId).delete().catch((error) => {
+              console.error('Error eliminando entrada de partido de la nube:', error);
+            });
+          }
+          
+          renderMatchStats();
+          renderRecentMatchEntries();
            }
-         }
-       });
+        }
+      });
 
       right.appendChild(btnDelete);
       li.appendChild(left);
@@ -1954,13 +1954,9 @@
       saveCloudConfig();
       applyThemeFromConfig();
       renderMatchStats();
-             // Inicia Firebase si procede
-       await initFirebaseIfEnabled();
-       
-       // Actualizar validación de minutos si cambió la configuración
-       setupMinutesValidation();
-       
-       settingsModal.hidden = true;
+      // Inicia Firebase si procede
+      await initFirebaseIfEnabled();
+      settingsModal.hidden = true;
     });
     if (btnSettingsResetColors) {
       btnSettingsResetColors.addEventListener('click', () => {
@@ -1988,56 +1984,36 @@
         return;
       }
       
-              if (!playerId) {
-          alert('Por favor, selecciona un jugador.');
-          return;
-        }
-        
-        // Verificar que el jugador esté convocado para esa fecha
-        const convocation = findConvocationByDate(date);
-        if (!convocation) {
-          alert('No hay convocatoria registrada para esa fecha.');
-          return;
-        }
-        
-        if (convocation.players[playerId] !== 'C') {
-          alert('Este jugador no está convocado para el partido de esa fecha.');
-          return;
-        }
-        
-        // Validar minutos (no puede exceder la configuración)
-        const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
-        const maxMinutes = config.matchMinutes || 80;
-        
-        if (minutes > maxMinutes) {
-          alert(`Los minutos no pueden exceder ${maxMinutes} (configuración actual). Por favor, ajusta los minutos o cambia la configuración.`);
-          inputMatchMinutes.focus();
-          return;
-        }
+      if (!playerId) {
+        alert('Por favor, selecciona un jugador.');
+        return;
+      }
       
-              // Verificar si ya existen datos para este jugador en esta fecha
-        const existingEntry = findMatchEntryByPlayerAndDate(playerId, date);
-        if (existingEntry) {
-          const confirmed = confirm(`Ya existen datos para ${getPlayerName(playerId)} en la fecha ${formatDateHuman(date)}. ¿Deseas sobrescribirlos?`);
-          if (!confirmed) return;
-          
-          // Validar minutos antes de actualizar
-          const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
-          const maxMinutes = config.matchMinutes || 80;
-          
-          if (minutes > maxMinutes) {
-            alert(`Los minutos no pueden exceder ${maxMinutes} (configuración actual). Por favor, ajusta los minutos o cambia la configuración.`);
-            inputMatchMinutes.focus();
-            return;
-          }
-          
-          // Actualizar entrada existente
-          existingEntry.goals = Math.max(0, parseInt(inputMatchGoals.value, 10) || 0);
-          existingEntry.assists = Math.max(0, parseInt(inputMatchAssists.value, 10) || 0);
-          existingEntry.yellows = Math.max(0, parseInt(inputMatchYellows.value, 10) || 0);
-          existingEntry.reds = Math.max(0, parseInt(inputMatchReds.value, 10) || 0);
-          existingEntry.minutes = minutes;
-          existingEntry.updatedAt = Date.now();
+      // Verificar que el jugador esté convocado para esa fecha
+      const convocation = findConvocationByDate(date);
+      if (!convocation) {
+        alert('No hay convocatoria registrada para esa fecha.');
+        return;
+      }
+      
+      if (convocation.players[playerId] !== 'C') {
+        alert('Este jugador no está convocado para el partido de esa fecha.');
+        return;
+      }
+      
+      // Verificar si ya existen datos para este jugador en esta fecha
+      const existingEntry = findMatchEntryByPlayerAndDate(playerId, date);
+      if (existingEntry) {
+        const confirmed = confirm(`Ya existen datos para ${getPlayerName(playerId)} en la fecha ${formatDateHuman(date)}. ¿Deseas sobrescribirlos?`);
+        if (!confirmed) return;
+        
+        // Actualizar entrada existente
+        existingEntry.goals = Math.max(0, parseInt(inputMatchGoals.value, 10) || 0);
+        existingEntry.assists = Math.max(0, parseInt(inputMatchAssists.value, 10) || 0);
+        existingEntry.yellows = Math.max(0, parseInt(inputMatchYellows.value, 10) || 0);
+        existingEntry.reds = Math.max(0, parseInt(inputMatchReds.value, 10) || 0);
+        existingEntry.minutes = Math.max(0, parseInt(inputMatchMinutes.value, 10) || 0);
+        existingEntry.updatedAt = Date.now();
         
         // Actualizar en el array local
         const entryIndex = matches.findIndex(e => e.id === existingEntry.id);
@@ -2166,72 +2142,12 @@
     });
   }
 
-  // Función para validar minutos en tiempo real
-  function setupMinutesValidation() {
-    if (!inputMatchMinutes) return;
-    
-    const validateMinutes = () => {
-      const minutes = parseInt(inputMatchMinutes.value, 10) || 0;
-      const maxMinutes = config.matchMinutes || 80;
-      
-      // Remover estilos de error previos
-      inputMatchMinutes.style.borderColor = '';
-      inputMatchMinutes.style.backgroundColor = '';
-      
-      // Remover mensaje de error previo
-      const existingError = inputMatchMinutes.parentNode.querySelector('.minutes-error');
-      if (existingError) {
-        existingError.remove();
-      }
-      
-      if (minutes > maxMinutes) {
-        // Aplicar estilos de error
-        inputMatchMinutes.style.borderColor = '#ef4444';
-        inputMatchMinutes.style.backgroundColor = '#fef2f2';
-        
-        // Crear mensaje de error
-        const errorMsg = document.createElement('div');
-        errorMsg.className = 'minutes-error';
-        errorMsg.style.cssText = `
-          color: #ef4444;
-          font-size: 0.8em;
-          margin-top: 4px;
-          font-weight: 500;
-        `;
-        errorMsg.textContent = `⚠️ Máximo ${maxMinutes} minutos permitidos (configuración actual)`;
-        
-        // Insertar mensaje después del input
-        inputMatchMinutes.parentNode.appendChild(errorMsg);
-        
-        return false;
-      }
-      
-      return true;
-    };
-    
-    // Validar en tiempo real mientras se escribe
-    inputMatchMinutes.addEventListener('input', validateMinutes);
-    
-    // Validar al perder el foco
-    inputMatchMinutes.addEventListener('blur', validateMinutes);
-    
-    // Validar al hacer submit
-    inputMatchMinutes.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        validateMinutes();
-      }
-    });
-  }
-
   // Event listener para fecha del partido
   if (inputMatchDate) {
     inputMatchDate.addEventListener('change', () => {
       renderMatchPlayerForm();
     });
   }
-  
-  // Configurar validación de minutos
-  setupMinutesValidation();
 
   // Event listener para cerrar modal de estadísticas del jugador
   document.addEventListener('click', (e) => {
@@ -2557,21 +2473,6 @@
       // Añadir estilos CSS específicos para iOS
       const style = document.createElement('style');
       style.textContent = `
-        /* Estilos para validación de minutos */
-        .minutes-error {
-          color: #ef4444;
-          font-size: 0.8em;
-          margin-top: 4px;
-          font-weight: 500;
-          animation: fadeIn 0.3s ease;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-5px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
-        /* Estilos para radio buttons */
         .radio-group input[type="radio"] {
           -webkit-appearance: none;
           appearance: none;
@@ -2666,6 +2567,8 @@
           // Desmarcar el otro radio button
           newVisitante.checked = false;
           
+          // Lógica automática: marcar Visitante en la siguiente jornada
+          
         });
         
         newVisitante.addEventListener('click', () => {
@@ -2674,6 +2577,8 @@
           
           // Desmarcar el otro radio button
           newLocal.checked = false;
+          
+          // Lógica automática: marcar Local en la siguiente jornada
           
         });
         
@@ -3292,20 +3197,6 @@
       // Desmarcar el otro radio button
       locationVisitante.checked = false;
       
-      // Lógica automática: marcar Visitante en la siguiente jornada
-      setTimeout(() => {
-        const nextBlock = journeyBlock.nextElementSibling;
-        if (nextBlock && nextBlock.classList.contains('journey-block')) {
-          const nextJourneyNum = journeyNumber + 1;
-          const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
-          const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
-          
-          if (nextVisitante && nextLocal) {
-            nextVisitante.checked = true;
-            nextLocal.checked = false;
-          }
-        }
-      }, 100);
     });
     
     // Event listener para Visitante
@@ -3316,30 +3207,8 @@
       // Desmarcar el otro radio button
       locationLocal.checked = false;
       
-      // Lógica automática: marcar Local en la siguiente jornada
-      setTimeout(() => {
-        const nextBlock = journeyBlock.nextElementSibling;
-        if (nextBlock && nextBlock.classList.contains('journey-block')) {
-          const nextJourneyNum = journeyNumber + 1;
-          const nextLocal = nextBlock.querySelector(`input[id="location-local-${nextJourneyNum}"]`);
-          const nextVisitante = nextBlock.querySelector(`input[id="location-visitante-${nextJourneyNum}"]`);
-          
-          if (nextLocal && nextVisitante) {
-            nextLocal.checked = true;
-            nextVisitante.checked = false;
-          }
-        }
-      }, 100);
     });
     
-    // Establecer valor por defecto (Local para jornadas impares, Visitante para pares)
-    if (journeyNumber % 2 === 1) {
-      locationLocal.checked = true;
-      locationVisitante.checked = false;
-    } else {
-      locationLocal.checked = false;
-      locationVisitante.checked = true;
-    }
   }
 
   // Función para configurar validación de jornadas duplicadas
@@ -3572,36 +3441,36 @@
           <select id="match-journey-${journeyNumber}" required>
             <option value="">Seleccionar jornada</option>
             <option value="A">Amistoso</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
-            <option value="10">10</option>
-            <option value="11">11</option>
-            <option value="12">12</option>
-            <option value="13">13</option>
-            <option value="14">14</option>
-            <option value="15">15</option>
-            <option value="16">16</option>
-            <option value="17">17</option>
-            <option value="18">18</option>
-            <option value="19">19</option>
-            <option value="20">20</option>
-            <option value="21">21</option>
-            <option value="22">22</option>
-            <option value="23">23</option>
-            <option value="24">24</option>
-            <option value="25">25</option>
-            <option value="26">26</option>
-            <option value="27">27</option>
-            <option value="28">28</option>
-            <option value="29">29</option>
-            <option value="30">30</option>
+            <option value="1">Jornada 1</option>
+            <option value="2">Jornada 2</option>
+            <option value="3">Jornada 3</option>
+            <option value="4">Jornada 4</option>
+            <option value="5">Jornada 5</option>
+            <option value="6">Jornada 6</option>
+            <option value="7">Jornada 7</option>
+            <option value="8">Jornada 8</option>
+            <option value="9">Jornada 9</option>
+            <option value="10">Jornada 10</option>
+            <option value="11">Jornada 11</option>
+            <option value="12">Jornada 12</option>
+            <option value="13">Jornada 13</option>
+            <option value="14">Jornada 14</option>
+            <option value="15">Jornada 15</option>
+            <option value="16">Jornada 16</option>
+            <option value="17">Jornada 17</option>
+            <option value="18">Jornada 18</option>
+            <option value="19">Jornada 19</option>
+            <option value="20">Jornada 20</option>
+            <option value="21">Jornada 21</option>
+            <option value="22">Jornada 22</option>
+            <option value="23">Jornada 23</option>
+            <option value="24">Jornada 24</option>
+            <option value="25">Jornada 25</option>
+            <option value="26">Jornada 26</option>
+            <option value="27">Jornada 27</option>
+            <option value="28">Jornada 28</option>
+            <option value="29">Jornada 29</option>
+            <option value="30">Jornada 30</option>
           </select>
         </label>
         <label>
@@ -3862,7 +3731,7 @@
     applyThemeFromConfig();
     setupAuthUI();
     applyAuthRestrictions();
-
+    
     // Inicializar Firebase si está habilitado
     if (cloud.enabled) {
       initFirebaseIfEnabled();
