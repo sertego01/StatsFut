@@ -1167,10 +1167,11 @@
       const li = document.createElement('li');
       li.classList.add('checklist-item');
       const nameDiv = document.createElement('div');
+      nameDiv.className = 'checklist-item-name';
       nameDiv.textContent = p.name;
       const right = document.createElement('div');
       const group = document.createElement('div');
-      group.className = 'radio-group';
+      group.className = 'radio-group-attendance';
       const name = `att_${p.id}`;
       const current = attendanceStatuses[p.id] || 'A';
       ['A','F','FJ','T'].forEach(code => {
