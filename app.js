@@ -1844,6 +1844,15 @@
   formStatsFilter.addEventListener('input', () => {
     renderStats();
   });
+  
+  // Botón de buscar
+  const btnStatsSearch = $('#stats-search');
+  if (btnStatsSearch) {
+    btnStatsSearch.addEventListener('click', () => {
+      renderStats();
+    });
+  }
+  
   btnStatsClear.addEventListener('click', () => {
     inputStatsFrom.value = '';
     inputStatsTo.value = '';
@@ -3867,6 +3876,14 @@
     
     // Fecha por defecto (usar fecha actual ya que limpiamos lastSelectedDate)
     inputSessionDate.value = todayISO();
+    
+    // Configurar fechas predeterminadas para estadísticas de entrenamientos
+    if (inputStatsFrom) {
+      inputStatsFrom.value = '2025-09-01'; // 01/09/2025
+    }
+    if (inputStatsTo) {
+      inputStatsTo.value = todayISO(); // Fecha de hoy
+    }
     
     // NO llamar a loadState() aquí - los datos vendrán de Firebase
     // loadState(); // ❌ COMENTADO: Ya no cargamos datos del localStorage
