@@ -353,6 +353,28 @@
     return cloud.auth && cloud.auth.currentUser && cloud.auth.currentUser.isAnonymous;
   }
 
+  // Función para verificar permisos de escritura en Firebase
+  async function checkWritePermissions() {
+    if (!cloud.enabled || !cloud.db || !cloud.auth.currentUser) {
+      return { canWrite: false, error: 'No hay conexión a Firebase o usuario no autenticado' };
+    }
+
+    try {
+      // Intentar escribir un documento de prueba
+      const testDoc = cloud.db.collection('_test_permissions').doc('test');
+      await testDoc.set({ test: true, timestamp: Date.now() });
+      
+      // Si llegamos aquí, tenemos permisos de escritura
+      // Limpiar el documento de prueba
+      await testDoc.delete();
+      
+      return { canWrite: true, error: null };
+    } catch (error) {
+      console.error('Error verificando permisos de escritura:', error);
+      return { canWrite: false, error: error.message };
+    }
+  }
+
   // ---- Firebase / Cloud Sync ----
   const STORAGE_KEYS_CLOUD = {
     cloudEnabled: 'asistencia_cloud_enabled',
@@ -2009,6 +2031,18 @@
       btnReset.disabled = true;
       
       // Mostrar indicador de carga
+      showLoadingIndicator('Verificando permisos...');
+      
+      // Verificar permisos de escritura antes de proceder
+      const permissions = await checkWritePermissions();
+      if (!permissions.canWrite) {
+        hideLoadingIndicator();
+        alert(`❌ No se pueden borrar los datos de Firebase.\n\nError: ${permissions.error}\n\nPor favor, verifica las reglas de seguridad de Firestore.`);
+        btnReset.textContent = 'Borrar todo';
+        btnReset.disabled = false;
+        return;
+      }
+      
       showLoadingIndicator('Borrando todos los datos...');
       
       // 1. BORRAR DE FIREBASE (solo si hay sesión autenticada)
