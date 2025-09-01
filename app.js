@@ -1296,6 +1296,12 @@
       // Limpiar detalle
       if (statsDetailList) statsDetailList.innerHTML = '';
       if (statsDetailEmpty) statsDetailEmpty.style.display = '';
+      
+      // Resetear título del detalle
+      const statsDetailTitle = document.getElementById('stats-detail-title');
+      if (statsDetailTitle) {
+        statsDetailTitle.textContent = 'Detalle de sesiones';
+      }
       return;
     }
     
@@ -1323,6 +1329,12 @@
     if (statsDetailList) statsDetailList.innerHTML = '';
     if (statsDetailEmpty) statsDetailEmpty.style.display = '';
     
+    // Resetear título del detalle
+    const statsDetailTitle = document.getElementById('stats-detail-title');
+    if (statsDetailTitle) {
+      statsDetailTitle.textContent = 'Detalle de sesiones';
+    }
+    
     rows.forEach(r => {
       const tr = document.createElement('tr');
       const tdName = document.createElement('td');
@@ -1348,6 +1360,17 @@
 
   function renderPlayerAttendanceDetail(playerId, from, to) {
     if (!statsDetailList || !statsDetailEmpty) return;
+    
+    // Obtener el nombre del jugador
+    const player = players.find(p => p.id === playerId);
+    const playerName = player ? player.name : 'Jugador desconocido';
+    
+    // Actualizar el título con el nombre del jugador
+    const statsDetailTitle = document.getElementById('stats-detail-title');
+    if (statsDetailTitle) {
+      statsDetailTitle.textContent = `Detalle de sesiones - ${playerName}`;
+    }
+    
     const filtered = sessions.filter(s => {
       if (from && s.date < from) return false;
       if (to && s.date > to) return false;
@@ -1369,7 +1392,7 @@
     rows.sort((a, b) => a.date.localeCompare(b.date));
     statsDetailList.innerHTML = '';
     if (rows.length === 0) {
-      statsDetailEmpty.textContent = 'No hay faltas o retrasos en el rango seleccionado.';
+      statsDetailEmpty.textContent = `No hay faltas o retrasos de ${playerName} en el rango seleccionado.`;
       statsDetailEmpty.style.display = '';
       return;
     }
@@ -3828,6 +3851,14 @@
     
     // Fecha por defecto (usar fecha actual ya que limpiamos lastSelectedDate)
     inputSessionDate.value = todayISO();
+    
+    // Establecer fechas por defecto para estadísticas
+    if (inputStatsFrom) {
+      inputStatsFrom.value = '2025-09-01'; // 1 de septiembre de 2025
+    }
+    if (inputStatsTo) {
+      inputStatsTo.value = todayISO(); // Fecha de hoy
+    }
     
     renderAll();
     applyThemeFromConfig();
