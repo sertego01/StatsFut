@@ -1917,11 +1917,74 @@
   // Exportar/Importar eliminados según solicitud
 
   btnReset.addEventListener('click', async () => {
+    // Verificar si hay sesión iniciada para poder borrar de Firebase
+    if (!isAuthenticated) {
+      const loginFirst = confirm(
+        '⚠️ Para borrar todos los datos de Firebase necesitas iniciar sesión.\n\n' +
+        '¿Quieres iniciar sesión ahora para poder borrar todo?'
+      );
+      
+      if (loginFirst) {
+        // Abrir modal de login
+        const loginModal = document.getElementById('login-modal');
+        if (loginModal) {
+          loginModal.hidden = false;
+        }
+        return;
+      } else {
+        // Solo borrar localStorage si no quiere iniciar sesión
+        const localOnly = confirm(
+          '¿Quieres borrar solo los datos locales (localStorage)?\n\n' +
+          'Los datos de Firebase permanecerán intactos.'
+        );
+        
+        if (localOnly) {
+          // Solo borrar localStorage
+          const keysToRemove = [
+            STORAGE_KEYS.players,
+            STORAGE_KEYS.sessions,
+            STORAGE_KEYS.matches,
+            STORAGE_KEYS.convocations,
+            STORAGE_KEYS.rivals,
+            STORAGE_KEYS.matchResults,
+            STORAGE_KEYS.lastSelectedDate
+          ];
+          
+          keysToRemove.forEach(key => {
+            localStorage.removeItem(key);
+          });
+          
+          // Resetear variables en memoria
+          players = [];
+          sessions = [];
+          matches = [];
+          convocations = [];
+          rivals = [];
+          matchResults = [];
+          
+          // Refrescar UI
+          renderPlayersList();
+          renderAttendanceList();
+          renderStats();
+          renderMatchPlayerForm();
+          renderMatchStats();
+          renderRecentMatchEntries();
+          renderRecentConvocations();
+          renderRivalsList();
+          renderCalendar();
+          
+          alert('✅ Datos locales borrados. Los datos de Firebase permanecen intactos.');
+        }
+        return;
+      }
+    }
+    
     // ⚠️ CONFIRMACIÓN CRÍTICA: Borrado total de la base de datos
     const ok = confirm(
       '🚨 ¡ATENCIÓN! Esto borrará ABSOLUTAMENTE TODO:\n\n' +
       '⚠️ Esta acción NO SE PUEDE DESHACER\n' +
-      '⚠️ Los datos se perderán PERMANENTEMENTE\n\n' +
+      '⚠️ Los datos se perderán PERMANENTEMENTE\n' +
+      '⚠️ Se borrará de Firebase Y localStorage\n\n' +
       '¿Estás 100% seguro de que quieres continuar?'
     );
     
@@ -1948,10 +2011,13 @@
       // Mostrar indicador de carga
       showLoadingIndicator('Borrando todos los datos...');
       
-      // 1. BORRAR DE FIREBASE (si está disponible)
+      // 1. BORRAR DE FIREBASE (solo si hay sesión autenticada)
       let firebaseDeleted = 0;
-      if (cloud.enabled && cloud.db) {
-        // Intentar borrar con la sesión actual (autenticada o anónima)
+      let firebaseError = null;
+      
+      if (cloud.enabled && cloud.db && isAuthenticated) {
+        console.log('🔥 Iniciando borrado de Firebase con usuario autenticado...');
+        
         const collections = [
           { name: 'players', description: 'Jugadores' },
           { name: 'sessions', description: 'Sesiones de entrenamiento' },
@@ -1963,21 +2029,39 @@
         
         for (const collection of collections) {
           try {
+            console.log(`🔄 Borrando colección: ${collection.name}`);
             const snapshot = await cloud.db.collection(collection.name).get();
+            
             if (snapshot.docs.length > 0) {
-              const batch = cloud.db.batch();
-              snapshot.docs.forEach(doc => {
-                batch.delete(doc.ref);
-              });
-              await batch.commit();
-              firebaseDeleted += snapshot.docs.length;
-              console.log(`✅ Borrados ${snapshot.docs.length} documentos de ${collection.description}`);
+              // Borrar en lotes de 500 (límite de Firestore)
+              const batchSize = 500;
+              for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+                const batch = cloud.db.batch();
+                const batchDocs = snapshot.docs.slice(i, i + batchSize);
+                
+                batchDocs.forEach(doc => {
+                  batch.delete(doc.ref);
+                });
+                
+                await batch.commit();
+                firebaseDeleted += batchDocs.length;
+                console.log(`✅ Borrados ${batchDocs.length} documentos de ${collection.description} (lote ${Math.floor(i/batchSize) + 1})`);
+              }
+            } else {
+              console.log(`ℹ️ Colección ${collection.description} ya está vacía`);
             }
           } catch (error) {
             console.error(`❌ Error borrando ${collection.description}:`, error);
+            firebaseError = error.message;
             // Continuar con las demás colecciones aunque una falle
           }
         }
+      } else if (cloud.enabled && cloud.db && !isAuthenticated) {
+        firebaseError = 'No hay sesión autenticada para borrar de Firebase';
+        console.warn('⚠️ No se puede borrar de Firebase sin sesión autenticada');
+      } else {
+        firebaseError = 'Firebase no está disponible';
+        console.warn('⚠️ Firebase no está disponible');
       }
       
       // 2. BORRAR DEL LOCALSTORAGE
@@ -2020,9 +2104,19 @@
       
       // 6. MOSTRAR MENSAJE DE ÉXITO
       hideLoadingIndicator();
-      const firebaseStatus = firebaseDeleted > 0 ? `✅ Firebase (${firebaseDeleted} documentos)` : '⚠️ Firebase (no disponible)';
       
-      alert(`✅ BORRADO COMPLETO EXITOSO\n\n${firebaseStatus}\n✅ localStorage (limpio)\n✅ Memoria (limpia)\n\nLa aplicación se ha reiniciado con datos vacíos.`);
+      let firebaseStatus;
+      if (firebaseDeleted > 0) {
+        firebaseStatus = `✅ Firebase (${firebaseDeleted} documentos eliminados)`;
+      } else if (firebaseError) {
+        firebaseStatus = `⚠️ Firebase (${firebaseError})`;
+      } else {
+        firebaseStatus = `⚠️ Firebase (no disponible)`;
+      }
+      
+      const successMessage = `✅ BORRADO COMPLETO EXITOSO\n\n${firebaseStatus}\n✅ localStorage (limpio)\n✅ Memoria (limpia)\n\nLa aplicación se ha reiniciado con datos vacíos.`;
+      
+      alert(successMessage);
       
       // 7. RECARGAR LA PÁGINA DESPUÉS DE UN MOMENTO
       setTimeout(() => {
