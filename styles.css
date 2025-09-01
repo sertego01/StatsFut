@@ -225,28 +225,11 @@ input[type="checkbox"]:checked::after {
   font-weight: 600;
   font-size: 12px;
 }
-.radio input[type="radio"]:focus + label { outline: none; border-color: var(--primary); }
-.radio input[type="radio"]:checked + label { background: var(--primary); color: #052e2b; border-color: var(--primary); }
+.radio input[type="radio"]:focus + label { outline: none; box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25); border-color: var(--primary); }
+.radio input[type="radio"]:checked + label { background: linear-gradient(180deg, var(--primary), var(--primary-700)); color: #052e2b; border-color: transparent; }
 
 /* Radio group variantes C/NC para convocatoria */
 .radio-cn label { min-width: 48px; }
-
-/* Optimización para móvil - radio buttons */
-@media (max-width: 768px) {
-  .radio-group { 
-    gap: 4px; 
-    justify-content: center; 
-  }
-  .radio label {
-    min-width: 32px;
-    height: 28px;
-    padding: 0 8px;
-    font-size: 11px;
-  }
-  .radio-cn label { 
-    min-width: 40px; 
-  }
-}
 
 /* Modal de estadísticas del jugador */
 .player-stats-grid {
