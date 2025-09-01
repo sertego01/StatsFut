@@ -34,26 +34,19 @@
 
   function loadState() {
     try {
-      console.log('loadState ejecutándose...');
       const p = JSON.parse(localStorage.getItem(STORAGE_KEYS.players) || '[]');
       const s = JSON.parse(localStorage.getItem(STORAGE_KEYS.sessions) || '[]');
       const m = JSON.parse(localStorage.getItem(STORAGE_KEYS.matches) || '[]');
       const c = JSON.parse(localStorage.getItem(STORAGE_KEYS.convocations) || '[]');
       const r = JSON.parse(localStorage.getItem(STORAGE_KEYS.rivals) || '[]');
       const mr = JSON.parse(localStorage.getItem(STORAGE_KEYS.matchResults) || '[]');
-      
-      console.log('Datos del localStorage:', { p: p.length, s: s.length, m: m.length, c: c.length, r: r.length, mr: mr.length });
-      
       if (Array.isArray(p)) players = p; else players = [];
       if (Array.isArray(s)) sessions = s; else sessions = [];
       if (Array.isArray(m)) matches = m; else matches = [];
       if (Array.isArray(c)) convocations = c; else convocations = [];
       if (Array.isArray(r)) rivals = r; else rivals = [];
       if (Array.isArray(mr)) matchResults = mr; else matchResults = [];
-      
-      console.log('Datos asignados a variables:', { players: players.length, sessions: sessions.length, matches: matches.length });
     } catch (e) {
-      console.error('Error en loadState:', e);
       players = [];
       sessions = [];
       matches = [];
@@ -384,9 +377,9 @@
 
   
 
-  // Inicializar Firebase para cargar datos
+  // Inicializar Firebase si está habilitado
   async function initFirebaseIfEnabled() {
-    if (!cloud.firebaseConfig) return;
+    if (!cloud.enabled || !cloud.firebaseConfig) return;
     
     try {
       // Importar Firebase dinámicamente
@@ -426,10 +419,14 @@
         cloud.auth = firebase.auth(cloud.app);
       }
 
-      // Cargar datos desde Firebase siempre (con o sin autenticación)
-      // Para usuarios no autenticados: solo lectura
-      // Para usuarios autenticados: lectura y escritura
-      startCloudSync();
+      // No forzamos login anónimo: el usuario debe iniciar sesión para editar
+
+      // Iniciar sincronización sólo si hay sesión
+      if (isAuthenticated) {
+        startCloudSync();
+        // Cargar datos iniciales de Firebase
+        await loadDataFromFirebase();
+      }
       
 
     } catch (error) {
@@ -440,7 +437,7 @@
 
   // Iniciar sincronización en tiempo real
   function startCloudSync() {
-    if (!cloud.db) return;
+    if (!cloud.enabled || !cloud.db) return;
     if (cloudSyncStarted) return;
     cloudSyncStarted = true;
 
@@ -448,6 +445,7 @@
 
     // Sincronizar jugadores
     cloud.db.collection('players').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return; // Solo reflejar datos si hay sesión iniciada
       if (isApplyingCloudSnapshot) return;
       
       const changes = snapshot.docChanges();
@@ -482,27 +480,15 @@
       
       // Mostrar mensaje de datos cargados
 
-    }, (error) => {
-      console.error('Error cargando jugadores desde Firebase:', error);
-      if (error.code === 'permission-denied') {
-        console.log('Permisos denegados, cargando datos desde localStorage...');
-        loadState();
-        renderPlayersList();
-        renderAttendanceList();
-        renderMatchPlayerForm();
-        renderMatchStats();
-        renderRecentMatchEntries();
-      }
     });
 
     // Sincronizar sesiones
     cloud.db.collection('sessions').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
-      // Pero permitir que se actualicen si hay cambios en Firebase
       if (!initialSyncCompleted && sessions.length > 0) {
-        initialSyncCompleted = true;
         return;
       }
       
@@ -544,25 +530,14 @@
       if (inputSessionDate.value) {
         renderAttendanceList();
       }
-    }, (error) => {
-      console.error('Error cargando sesiones desde Firebase:', error);
-      if (error.code === 'permission-denied') {
-        console.log('Permisos denegados, cargando sesiones desde localStorage...');
-        loadState();
-        renderStats();
-        renderRecentSessions();
-        if (inputSessionDate.value) {
-          renderAttendanceList();
-        }
-      }
     });
 
     // Sincronizar entradas de partido
     cloud.db.collection('matchEntries').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
-      // Pero permitir que se actualicen si hay cambios en Firebase
       if (!initialSyncCompleted && matches.length > 0) {
         initialSyncCompleted = true;
         return;
@@ -611,18 +586,11 @@
       if (!initialSyncCompleted) {
         initialSyncCompleted = true;
       }
-    }, (error) => {
-      console.error('Error cargando entradas de partido desde Firebase:', error);
-      if (error.code === 'permission-denied') {
-        console.log('Permisos denegados, cargando partidos desde localStorage...');
-        loadState();
-        renderMatchStats();
-        renderRecentMatchEntries();
-      }
     });
 
     // Sincronizar rivales
     cloud.db.collection('rivals').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
@@ -665,18 +633,11 @@
       // Refrescar UI
       renderRivalsList();
       renderCalendar();
-    }, (error) => {
-      console.error('Error cargando rivales desde Firebase:', error);
-      if (error.code === 'permission-denied') {
-        console.log('Permisos denegados, cargando rivales desde localStorage...');
-        loadState();
-        renderRivalsList();
-        renderCalendar();
-      }
     });
 
     // Sincronizar resultados de partidos (para el calendario)
     cloud.db.collection('matchResults').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
@@ -719,18 +680,11 @@
       saveState();
       renderCalendar();
       renderRivalsList(); // Para actualizar las jornadas mostradas en cada rival
-    }, (error) => {
-      console.error('Error cargando resultados de partidos desde Firebase:', error);
-      if (error.code === 'permission-denied') {
-        console.log('Permisos denegados, cargando resultados desde localStorage...');
-        loadState();
-        renderCalendar();
-        renderRivalsList();
-      }
     });
 
     // Sincronizar convocatorias
     cloud.db.collection('convocations').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
@@ -774,17 +728,94 @@
       renderConvocationList();
       renderRecentConvocations();
       renderStats(); // Para actualizar estadísticas de convocatorias
-    }, (error) => {
-      console.error('Error cargando convocatorias desde Firebase:', error);
-      if (error.code === 'permission-denied') {
-        console.log('Permisos denegados, cargando convocatorias desde localStorage...');
-        loadState();
-        renderConvocationList();
-        renderRecentConvocations();
-        renderStats();
-      }
     });
 
+  }
+
+  // Cargar datos desde Firebase
+  async function loadDataFromFirebase() {
+    if (!cloud.enabled || !cloud.db || !isAuthenticated) return;
+    
+    try {
+      console.log('🔄 Cargando datos desde Firebase...');
+      
+      // Mostrar indicador de carga
+      showLoadingIndicator('Cargando datos desde Firebase...');
+      
+      // Marcar que estamos aplicando cambios de la nube
+      isApplyingCloudSnapshot = true;
+      
+      // Cargar jugadores
+      const playersSnapshot = await cloud.db.collection('players').get();
+      players.length = 0; // Limpiar array existente
+      playersSnapshot.forEach(doc => {
+        players.push(doc.data());
+      });
+      players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+      
+      // Cargar sesiones
+      const sessionsSnapshot = await cloud.db.collection('sessions').get();
+      sessions.length = 0; // Limpiar array existente
+      sessionsSnapshot.forEach(doc => {
+        sessions.push(doc.data());
+      });
+      sessions.sort((a, b) => a.date.localeCompare(b.date));
+      
+      // Cargar entradas de partido
+      const matchesSnapshot = await cloud.db.collection('matchEntries').get();
+      matches.length = 0; // Limpiar array existente
+      matchesSnapshot.forEach(doc => {
+        matches.push(doc.data());
+      });
+      matches.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      
+      // Cargar convocatorias
+      const convocationsSnapshot = await cloud.db.collection('convocations').get();
+      convocations.length = 0; // Limpiar array existente
+      convocationsSnapshot.forEach(doc => {
+        convocations.push(doc.data());
+      });
+      convocations.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      
+      // Cargar rivales
+      const rivalsSnapshot = await cloud.db.collection('rivals').get();
+      rivals.length = 0; // Limpiar array existente
+      rivalsSnapshot.forEach(doc => {
+        rivals.push(doc.data());
+      });
+      rivals.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+      
+      // Cargar resultados de partidos
+      const matchResultsSnapshot = await cloud.db.collection('matchResults').get();
+      matchResults.length = 0; // Limpiar array existente
+      matchResultsSnapshot.forEach(doc => {
+        matchResults.push(doc.data());
+      });
+      
+      // Guardar en localStorage
+      saveState();
+      
+      // Refrescar toda la UI
+      renderPlayersList();
+      renderAttendanceList();
+      renderStats();
+      renderMatchPlayerForm();
+      renderMatchStats();
+      renderRecentMatchEntries();
+      renderRecentConvocations();
+      renderRivalsList();
+      renderCalendar();
+      
+      console.log('✅ Datos cargados desde Firebase correctamente');
+      
+    } catch (error) {
+      console.error('❌ Error cargando datos desde Firebase:', error);
+      alert('Error al cargar datos desde Firebase: ' + error.message);
+    } finally {
+      isApplyingCloudSnapshot = false;
+      // Ocultar indicador de carga
+      hideLoadingIndicator();
+    }
   }
 
   // Sincronizar datos locales a la nube
@@ -828,6 +859,43 @@
       alert('Error al sincronizar datos: ' + error.message);
     } finally {
       isApplyingCloudSnapshot = false;
+    }
+  }
+
+  // ---- Indicadores de carga ----
+  function showLoadingIndicator(message = 'Cargando...') {
+    // Crear o actualizar el indicador de carga
+    let loadingDiv = document.getElementById('loading-indicator');
+    if (!loadingDiv) {
+      loadingDiv = document.createElement('div');
+      loadingDiv.id = 'loading-indicator';
+      loadingDiv.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        z-index: 9999;
+        text-align: center;
+        font-size: 14px;
+        backdrop-filter: blur(4px);
+      `;
+      document.body.appendChild(loadingDiv);
+    }
+    loadingDiv.innerHTML = `
+      <div style="margin-bottom: 10px;">🔄</div>
+      <div>${message}</div>
+    `;
+    loadingDiv.style.display = 'block';
+  }
+
+  function hideLoadingIndicator() {
+    const loadingDiv = document.getElementById('loading-indicator');
+    if (loadingDiv) {
+      loadingDiv.style.display = 'none';
     }
   }
 
@@ -931,11 +999,6 @@
       if (recentSessionsCard) {
         recentSessionsCard.style.display = isAuthenticated ? '' : 'none';
       }
-      
-      // Si no está autenticado, mostrar mensaje de instrucción en estadísticas
-      if (!isAuthenticated && document.getElementById('stats-table')) {
-        renderStats();
-      }
     
     // Ajustar layout del footer según autenticación
     const footerTopRow = document.querySelector('.footer-top-row');
@@ -966,12 +1029,11 @@
           if (!cloud.auth) throw new Error('Auth no disponible');
           await cloud.auth.signInWithEmailAndPassword(email, password);
           isAuthenticated = true;
-          
-          // Limpiar datos locales y cargar desde Firebase
-          clearLocalStorageData();
-          
           applyAuthRestrictions();
           loginModal.hidden = true;
+          
+          // Cargar datos de Firebase después del login
+          await loadDataFromFirebase();
           
           // refrescar datos visibles
           renderPlayersList();
@@ -994,10 +1056,6 @@
           }
         } catch {}
         isAuthenticated = false;
-        
-        // Cargar datos del localStorage cuando se cierra sesión
-        loadState();
-        
         applyAuthRestrictions();
       });
     }
@@ -1068,34 +1126,40 @@
   let mstatsSort = { key: 'goals', dir: 'desc' };
 
   // ---- Navegación de pestañas ----
-  function onTabClick(e) {
+  async function onTabClick(e) {
     const btn = e.target.closest('button[data-target]');
     if (!btn) return;
     const targetId = btn.getAttribute('data-target');
     $$('.tab-btn', tabsNav).forEach(b => b.classList.toggle('is-active', b === btn));
     tabSections.forEach(sec => sec.classList.toggle('is-active', sec.id === targetId));
 
+    // Cargar datos de Firebase al cambiar de pestaña si está autenticado
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await loadDataFromFirebase();
+      } catch (error) {
+        console.error('Error cargando datos al cambiar de pestaña:', error);
+      }
+    }
+
     if (targetId === 'tab-entrenamientos') {
       renderAttendanceList();
     } else if (targetId === 'tab-estadisticas') {
       renderStats();
       renderRecentSessions();
-      
-      // Si no está autenticado, asegurar que se muestre el mensaje de instrucción
-      if (!isAuthenticated) {
-        renderStats();
-      }
     } else if (targetId === 'tab-partidos') {
       renderMatchPlayerForm();
       renderRecentMatchEntries();
       renderRecentConvocations();
     } else if (targetId === 'tab-estadisticas-partidos') {
       renderMatchStats();
+    } else if (targetId === 'tab-rivales') {
+      renderRivalsList();
+    } else if (targetId === 'tab-calendario') {
+      renderCalendar();
     }
-    // Inicia sync en segundo plano si se ha activado y no está ya iniciado
-    if (cloud.enabled && cloud.db && !cloudSyncStarted) {
-      startCloudSync();
-    }
+    // Inicia sync en segundo plano si se ha activado
+    if (cloud.enabled && cloud.db) startCloudSync();
   }
 
   tabsNav.addEventListener('click', onTabClick);
@@ -1323,65 +1387,13 @@
   function renderStats() {
     const from = inputStatsFrom.value || null;
     const to = inputStatsTo.value || null;
-    
-    console.log('renderStats ejecutándose:', { 
-      isAuthenticated, 
-      from, 
-      to, 
-      sessionsCount: sessions.length,
-      playersCount: players.length 
-    });
-    
-    // Si no está autenticado y no hay fechas seleccionadas, mostrar mensaje de instrucción
-    if (!isAuthenticated && !from && !to) {
-      statsTbody.innerHTML = '';
-      statsEmpty.classList.toggle('is-hidden', false);
-      statsEmpty.classList.add('instruction');
-      statsTable.style.display = 'none';
-      statsEmpty.textContent = 'Selecciona un rango de fechas y haz clic en "Buscar" para ver las estadísticas.';
-      
-      // Limpiar detalle
-      if (statsDetailList) statsDetailList.innerHTML = '';
-      if (statsDetailEmpty) statsDetailEmpty.style.display = '';
-      
-      // Resetear título del detalle
-      const statsDetailTitle = document.getElementById('stats-detail-title');
-      if (statsDetailTitle) {
-        statsDetailTitle.textContent = 'Detalle de sesiones';
-      }
-      return;
-    }
-    
     const { totalSessions, rows } = computeStats(from, to);
     statsTbody.innerHTML = '';
     statsEmpty.classList.toggle('is-hidden', totalSessions > 0);
     statsTable.style.display = totalSessions > 0 ? 'table' : 'none';
-    
-    // Quitar clase de instrucción si hay datos
-    if (totalSessions > 0) {
-      statsEmpty.classList.remove('instruction');
-    }
-    
-    // Si no hay sesiones en el rango seleccionado
-    if (totalSessions === 0) {
-      statsEmpty.classList.remove('instruction');
-      if (from || to) {
-        statsEmpty.textContent = 'No hay sesiones registradas en el rango de fechas seleccionado.';
-      } else {
-        statsEmpty.textContent = 'No hay sesiones registradas.';
-      }
-    }
-    
-    // Limpiar detalle
+    // limpia detalle
     if (statsDetailList) statsDetailList.innerHTML = '';
     if (statsDetailEmpty) statsDetailEmpty.style.display = '';
-    
-    // Resetear título del detalle
-    const statsDetailTitle = document.getElementById('stats-detail-title');
-    if (statsDetailTitle) {
-      statsDetailTitle.textContent = 'Detalle de sesiones';
-    }
-    
     rows.forEach(r => {
       const tr = document.createElement('tr');
       const tdName = document.createElement('td');
@@ -1407,17 +1419,6 @@
 
   function renderPlayerAttendanceDetail(playerId, from, to) {
     if (!statsDetailList || !statsDetailEmpty) return;
-    
-    // Obtener el nombre del jugador
-    const player = players.find(p => p.id === playerId);
-    const playerName = player ? player.name : 'Jugador desconocido';
-    
-    // Actualizar el título con el nombre del jugador
-    const statsDetailTitle = document.getElementById('stats-detail-title');
-    if (statsDetailTitle) {
-      statsDetailTitle.textContent = `Detalle de sesiones - ${playerName}`;
-    }
-    
     const filtered = sessions.filter(s => {
       if (from && s.date < from) return false;
       if (to && s.date > to) return false;
@@ -1439,7 +1440,7 @@
     rows.sort((a, b) => a.date.localeCompare(b.date));
     statsDetailList.innerHTML = '';
     if (rows.length === 0) {
-      statsDetailEmpty.textContent = `No hay faltas o retrasos de ${playerName} en el rango seleccionado.`;
+      statsDetailEmpty.textContent = 'No hay faltas o retrasos en el rango seleccionado.';
       statsDetailEmpty.style.display = '';
       return;
     }
@@ -1841,20 +1842,8 @@
 
   // Filtros
   formStatsFilter.addEventListener('input', () => {
-    // Solo renderizar automáticamente si está autenticado
-    if (isAuthenticated) {
-      renderStats();
-    }
+    renderStats();
   });
-  
-  // Botón de buscar (para usuarios no autenticados)
-  const btnStatsSearch = document.getElementById('stats-search');
-  if (btnStatsSearch) {
-    btnStatsSearch.addEventListener('click', () => {
-      renderStats();
-    });
-  }
-  
   btnStatsClear.addEventListener('click', () => {
     inputStatsFrom.value = '';
     inputStatsTo.value = '';
@@ -3819,30 +3808,32 @@
       }
     });
     
-    // Resetear variables en memoria solo si está autenticado
-    if (isAuthenticated) {
-      players = [];
-      sessions = [];
-      matches = [];
-      convocations = [];
-      rivals = [];
-      matchResults = [];
-    }
+    // Resetear variables en memoria
+    players = [];
+    sessions = [];
+    matches = [];
+    convocations = [];
+    rivals = [];
+    matchResults = [];
     
   }
 
   // ---- Inicialización ----
   function renderAll() {
+    // 🚫 NO renderizar datos hasta que Firebase esté listo
+    // Los datos se cargarán automáticamente desde la nube
+    
     // Solo renderizar elementos que no dependan de datos
     setupCollapsibleCards();
     applyThemeFromConfig();
     
-    // Mostrar mensaje de carga mientras se cargan los datos desde Firebase
+    // Mostrar mensaje de carga con información sobre la limpieza
     const loadingMessage = `
       <div class="loading">
-        <div style="margin-bottom: 10px;">🔄 Cargando datos desde Firebase...</div>
+        <div style="margin-bottom: 10px;">🔄 Cargando datos desde la nube...</div>
         <div style="font-size: 0.9em; color: #888;">
-          Los datos se cargan directamente desde la nube cada vez
+          💡 <strong>localStorage limpiado automáticamente</strong><br>
+          Se eliminaron datos duplicados para evitar conflictos
         </div>
       </div>
     `;
@@ -3850,31 +3841,15 @@
     if (document.getElementById('players-list')) {
       document.getElementById('players-list').innerHTML = loadingMessage;
     }
-    
-    // Renderizar estadísticas con datos de fallback
-    if (document.getElementById('stats-table')) {
-      renderStats();
-    }
   }
 
-  function init() {
-    // 🚀 CARGAR DATOS DESDE FIREBASE - Con fallback a localStorage
-    // Los datos se cargarán desde Firebase, pero si hay permisos denegados, se usarán datos locales
-    console.log('Inicializando aplicación - intentando cargar datos desde Firebase');
-    
-    // Cargar datos del localStorage como fallback inicial
-    loadState();
-    console.log('Datos de fallback cargados del localStorage:', { 
-      players: players.length, 
-      sessions: sessions.length, 
-      matches: matches.length 
-    });
+  async function init() {
+    // 🧹 LIMPIEZA AUTOMÁTICA: Eliminar datos duplicados del localStorage
+    clearLocalStorageData();
     
     // Cargar configuración (mantener tema, Firebase, etc.)
     loadConfig();
     loadCloudConfig();
-    
-    // No limpiar localStorage automáticamente - los datos se cargan desde Firebase
     
     // Limpiar duplicados existentes
     cleanDuplicates();
@@ -3893,23 +3868,18 @@
     // Fecha por defecto (usar fecha actual ya que limpiamos lastSelectedDate)
     inputSessionDate.value = todayISO();
     
-    // Establecer fechas por defecto para estadísticas
-    if (inputStatsFrom) {
-      inputStatsFrom.value = '2025-09-01'; // 1 de septiembre de 2025
-    }
-    if (inputStatsTo) {
-      inputStatsTo.value = todayISO(); // Fecha de hoy
-    }
+    // NO llamar a loadState() aquí - los datos vendrán de Firebase
+    // loadState(); // ❌ COMENTADO: Ya no cargamos datos del localStorage
     
     renderAll();
     applyThemeFromConfig();
     setupAuthUI();
     applyAuthRestrictions();
     
-    // Inicializar Firebase para cargar datos
-    initFirebaseIfEnabled();
-    
-    console.log('Inicialización completada. Los datos se cargarán desde Firebase.');
+    // Inicializar Firebase si está habilitado
+    if (cloud.enabled) {
+      await initFirebaseIfEnabled();
+    }
   }
 
 
