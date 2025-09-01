@@ -907,8 +907,13 @@
           if (!cloud.auth) throw new Error('Auth no disponible');
           await cloud.auth.signInWithEmailAndPassword(email, password);
           isAuthenticated = true;
+          
+          // Limpiar datos locales y cargar desde Firebase
+          clearLocalStorageData();
+          
           applyAuthRestrictions();
           loginModal.hidden = true;
+          
           // refrescar datos visibles
           renderPlayersList();
           renderAttendanceList();
@@ -930,6 +935,10 @@
           }
         } catch {}
         isAuthenticated = false;
+        
+        // Cargar datos del localStorage cuando se cierra sesión
+        loadState();
+        
         applyAuthRestrictions();
       });
     }
@@ -3718,38 +3727,39 @@
       }
     });
     
-    // Resetear variables en memoria
-    players = [];
-    sessions = [];
-    matches = [];
-    convocations = [];
-    rivals = [];
-    matchResults = [];
+    // Resetear variables en memoria solo si está autenticado
+    if (isAuthenticated) {
+      players = [];
+      sessions = [];
+      matches = [];
+      convocations = [];
+      rivals = [];
+      matchResults = [];
+    }
     
   }
 
   // ---- Inicialización ----
   function renderAll() {
-    // 🚫 NO renderizar datos hasta que Firebase esté listo
-    // Los datos se cargarán automáticamente desde la nube
-    
     // Solo renderizar elementos que no dependan de datos
     setupCollapsibleCards();
     applyThemeFromConfig();
     
-    // Mostrar mensaje de carga con información sobre la limpieza
-    const loadingMessage = `
-      <div class="loading">
-        <div style="margin-bottom: 10px;">🔄 Cargando datos desde la nube...</div>
-        <div style="font-size: 0.9em; color: #888;">
-          💡 <strong>localStorage limpiado automáticamente</strong><br>
-          Se eliminaron datos duplicados para evitar conflictos
+    // Mostrar mensaje de carga solo si está autenticado
+    if (isAuthenticated) {
+      const loadingMessage = `
+        <div class="loading">
+          <div style="margin-bottom: 10px;">🔄 Cargando datos desde la nube...</div>
+          <div style="font-size: 0.9em; color: #888;">
+            💡 <strong>localStorage limpiado automáticamente</strong><br>
+            Se eliminaron datos duplicados para evitar conflictos
+          </div>
         </div>
-      </div>
-    `;
-    
-    if (document.getElementById('players-list')) {
-      document.getElementById('players-list').innerHTML = loadingMessage;
+      `;
+      
+      if (document.getElementById('players-list')) {
+        document.getElementById('players-list').innerHTML = loadingMessage;
+      }
     }
     
     // Renderizar estadísticas iniciales (con mensaje de instrucción si no está autenticado)
@@ -3759,12 +3769,15 @@
   }
 
   function init() {
-    // 🧹 LIMPIEZA AUTOMÁTICA: Eliminar datos duplicados del localStorage
-    clearLocalStorageData();
-    
     // Cargar configuración (mantener tema, Firebase, etc.)
     loadConfig();
     loadCloudConfig();
+    
+    // 🧹 LIMPIEZA AUTOMÁTICA: Solo limpiar localStorage si está autenticado
+    // Para usuarios no autenticados, necesitamos mantener los datos locales
+    if (isAuthenticated) {
+      clearLocalStorageData();
+    }
     
     // Limpiar duplicados existentes
     cleanDuplicates();
@@ -3783,8 +3796,10 @@
     // Fecha por defecto (usar fecha actual ya que limpiamos lastSelectedDate)
     inputSessionDate.value = todayISO();
     
-    // NO llamar a loadState() aquí - los datos vendrán de Firebase
-    // loadState(); // ❌ COMENTADO: Ya no cargamos datos del localStorage
+    // Cargar datos del localStorage si no hay sesión activa
+    if (!isAuthenticated) {
+      loadState(); // Cargar datos locales para usuarios no autenticados
+    }
     
     renderAll();
     applyThemeFromConfig();
