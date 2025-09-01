@@ -384,9 +384,9 @@
 
   
 
-  // Inicializar Firebase si está habilitado
+  // Inicializar Firebase para cargar datos
   async function initFirebaseIfEnabled() {
-    if (!cloud.enabled || !cloud.firebaseConfig) return;
+    if (!cloud.firebaseConfig) return;
     
     try {
       // Importar Firebase dinámicamente
@@ -426,12 +426,10 @@
         cloud.auth = firebase.auth(cloud.app);
       }
 
-      // No forzamos login anónimo: el usuario debe iniciar sesión para editar
-
-      // Iniciar sincronización sólo si hay sesión
-      if (isAuthenticated) {
-        startCloudSync();
-      }
+      // Cargar datos desde Firebase siempre (con o sin autenticación)
+      // Para usuarios no autenticados: solo lectura
+      // Para usuarios autenticados: lectura y escritura
+      startCloudSync();
       
 
     } catch (error) {
@@ -442,7 +440,7 @@
 
   // Iniciar sincronización en tiempo real
   function startCloudSync() {
-    if (!cloud.enabled || !cloud.db) return;
+    if (!cloud.db) return;
     if (cloudSyncStarted) return;
     cloudSyncStarted = true;
 
@@ -450,7 +448,6 @@
 
     // Sincronizar jugadores
     cloud.db.collection('players').onSnapshot((snapshot) => {
-      if (!isAuthenticated) return; // Solo reflejar datos si hay sesión iniciada
       if (isApplyingCloudSnapshot) return;
       
       const changes = snapshot.docChanges();
@@ -489,7 +486,6 @@
 
     // Sincronizar sesiones
     cloud.db.collection('sessions').onSnapshot((snapshot) => {
-      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
@@ -541,7 +537,6 @@
 
     // Sincronizar entradas de partido
     cloud.db.collection('matchEntries').onSnapshot((snapshot) => {
-      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
@@ -598,7 +593,6 @@
 
     // Sincronizar rivales
     cloud.db.collection('rivals').onSnapshot((snapshot) => {
-      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
@@ -645,7 +639,6 @@
 
     // Sincronizar resultados de partidos (para el calendario)
     cloud.db.collection('matchResults').onSnapshot((snapshot) => {
-      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
@@ -692,7 +685,6 @@
 
     // Sincronizar convocatorias
     cloud.db.collection('convocations').onSnapshot((snapshot) => {
-      if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
@@ -3790,50 +3782,40 @@
     setupCollapsibleCards();
     applyThemeFromConfig();
     
-    // Mostrar mensaje de carga solo si está autenticado
-    if (isAuthenticated) {
-      const loadingMessage = `
-        <div class="loading">
-          <div style="margin-bottom: 10px;">🔄 Cargando datos desde la nube...</div>
-          <div style="font-size: 0.9em; color: #888;">
-            💡 <strong>localStorage limpiado automáticamente</strong><br>
-            Se eliminaron datos duplicados para evitar conflictos
-          </div>
+    // Mostrar mensaje de carga mientras se cargan los datos desde Firebase
+    const loadingMessage = `
+      <div class="loading">
+        <div style="margin-bottom: 10px;">🔄 Cargando datos desde Firebase...</div>
+        <div style="font-size: 0.9em; color: #888;">
+          Los datos se cargan directamente desde la nube cada vez
         </div>
-      `;
-      
-      if (document.getElementById('players-list')) {
-        document.getElementById('players-list').innerHTML = loadingMessage;
-      }
+      </div>
+    `;
+    
+    if (document.getElementById('players-list')) {
+      document.getElementById('players-list').innerHTML = loadingMessage;
     }
     
-    // Los datos ya están cargados, no necesitamos renderizar estadísticas aquí
-    // Se renderizarán después en init()
+    // Mostrar mensaje de carga en estadísticas
+    if (document.getElementById('stats-table')) {
+      const statsEmpty = document.getElementById('stats-empty');
+      if (statsEmpty) {
+        statsEmpty.classList.toggle('is-hidden', false);
+        statsEmpty.textContent = 'Cargando datos desde Firebase...';
+      }
+    }
   }
 
   function init() {
-    // 🚀 CARGAR DATOS INMEDIATAMENTE - Esto es lo más importante
-    // Cargar datos del localStorage siempre en la inicialización
-    // Para usuarios no autenticados: datos locales
-    // Para usuarios autenticados: datos locales como fallback hasta que Firebase cargue
-    loadState();
-    console.log('Datos cargados del localStorage en init:', { 
-      players: players.length, 
-      sessions: sessions.length, 
-      matches: matches.length,
-      isAuthenticated 
-    });
+    // 🚀 CARGAR DATOS DESDE FIREBASE - Sin usar localStorage como caché
+    // Los datos se cargarán desde Firebase cada vez que se recargue la página
+    console.log('Inicializando aplicación - datos se cargarán desde Firebase');
     
     // Cargar configuración (mantener tema, Firebase, etc.)
     loadConfig();
     loadCloudConfig();
     
-    // 🧹 LIMPIEZA AUTOMÁTICA: Solo limpiar localStorage si está autenticado
-    // Para usuarios no autenticados, necesitamos mantener los datos locales
-    // NOTA: isAuthenticated es false en la primera carga, así que no se limpian datos
-    if (isAuthenticated) {
-      clearLocalStorageData();
-    }
+    // No limpiar localStorage automáticamente - los datos se cargan desde Firebase
     
     // Limpiar duplicados existentes
     cleanDuplicates();
@@ -3865,23 +3847,10 @@
     setupAuthUI();
     applyAuthRestrictions();
     
-    // Renderizar estadísticas después de cargar datos
-    if (document.getElementById('stats-table')) {
-      renderStats();
-    }
+    // Inicializar Firebase para cargar datos
+    initFirebaseIfEnabled();
     
-    // Inicializar Firebase si está habilitado
-    if (cloud.enabled) {
-      initFirebaseIfEnabled();
-    }
-    
-    // Asegurar que las estadísticas se rendericen con los datos cargados
-    console.log('Inicialización completada. Datos disponibles:', {
-      players: players.length,
-      sessions: sessions.length,
-      matches: matches.length,
-      isAuthenticated
-    });
+    console.log('Inicialización completada. Los datos se cargarán desde Firebase.');
   }
 
 
