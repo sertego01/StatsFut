@@ -1945,9 +1945,13 @@
       btnReset.textContent = '🗑️ Borrando todo...';
       btnReset.disabled = true;
       
+      // Mostrar indicador de carga
+      showLoadingIndicator('Borrando todos los datos...');
+      
       // 1. BORRAR DE FIREBASE (si está disponible)
-      if (cloud.enabled && cloud.db && isAuthenticated) {
-        // Borrar todas las colecciones
+      let firebaseDeleted = 0;
+      if (cloud.enabled && cloud.db) {
+        // Intentar borrar con la sesión actual (autenticada o anónima)
         const collections = [
           { name: 'players', description: 'Jugadores' },
           { name: 'sessions', description: 'Sesiones de entrenamiento' },
@@ -1957,21 +1961,21 @@
           { name: 'matchResults', description: 'Resultados de partidos' }
         ];
         
-        let totalDeleted = 0;
-        
         for (const collection of collections) {
           try {
             const snapshot = await cloud.db.collection(collection.name).get();
-            const batch = cloud.db.batch();
-            
-            snapshot.docs.forEach(doc => {
-              batch.delete(doc.ref);
-            });
-            
-            await batch.commit();
-            totalDeleted += snapshot.docs.length;
+            if (snapshot.docs.length > 0) {
+              const batch = cloud.db.batch();
+              snapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+              });
+              await batch.commit();
+              firebaseDeleted += snapshot.docs.length;
+              console.log(`✅ Borrados ${snapshot.docs.length} documentos de ${collection.description}`);
+            }
           } catch (error) {
             console.error(`❌ Error borrando ${collection.description}:`, error);
+            // Continuar con las demás colecciones aunque una falle
           }
         }
       }
@@ -1999,16 +2003,35 @@
       rivals = [];
       matchResults = [];
       
-      // 4. MOSTRAR MENSAJE DE ÉXITO DETALLADO
-      const firebaseStatus = cloud.enabled && cloud.db && isAuthenticated ? '✅ Firebase (nube)' : '⚠️ Firebase (no disponible)';
+      // 4. DESHABILITAR TEMPORALMENTE LA CARGA AUTOMÁTICA
+      // Marcar que se ha hecho un borrado completo
+      localStorage.setItem('asistencia_just_deleted', 'true');
       
-      // 5. RECARGAR LA PÁGINA
+      // 5. REFRESCAR LA UI INMEDIATAMENTE
+      renderPlayersList();
+      renderAttendanceList();
+      renderStats();
+      renderMatchPlayerForm();
+      renderMatchStats();
+      renderRecentMatchEntries();
+      renderRecentConvocations();
+      renderRivalsList();
+      renderCalendar();
+      
+      // 6. MOSTRAR MENSAJE DE ÉXITO
+      hideLoadingIndicator();
+      const firebaseStatus = firebaseDeleted > 0 ? `✅ Firebase (${firebaseDeleted} documentos)` : '⚠️ Firebase (no disponible)';
+      
+      alert(`✅ BORRADO COMPLETO EXITOSO\n\n${firebaseStatus}\n✅ localStorage (limpio)\n✅ Memoria (limpia)\n\nLa aplicación se ha reiniciado con datos vacíos.`);
+      
+      // 7. RECARGAR LA PÁGINA DESPUÉS DE UN MOMENTO
       setTimeout(() => {
         window.location.reload();
-      }, 2000);
+      }, 1000);
       
     } catch (error) {
       console.error('❌ Error durante el borrado:', error);
+      hideLoadingIndicator();
       alert('❌ Error durante el borrado: ' + error.message);
       
       // Restaurar botón
@@ -3906,6 +3929,14 @@
   }
 
   async function init() {
+    // Verificar si se acaba de hacer un borrado completo
+    const justDeleted = localStorage.getItem('asistencia_just_deleted') === 'true';
+    if (justDeleted) {
+      // Limpiar la marca de borrado
+      localStorage.removeItem('asistencia_just_deleted');
+      console.log('🔄 Aplicación iniciada después de borrado completo - no cargando datos');
+    }
+    
     // 🧹 LIMPIEZA AUTOMÁTICA: Eliminar datos duplicados del localStorage
     clearLocalStorageData();
     
@@ -3946,9 +3977,12 @@
     setupAuthUI();
     applyAuthRestrictions();
     
-    // Inicializar Firebase si está habilitado
-    if (cloud.enabled) {
+    // Inicializar Firebase si está habilitado y no se acaba de hacer un borrado
+    if (cloud.enabled && !justDeleted) {
       await initFirebaseIfEnabled();
+    } else if (justDeleted) {
+      // Mostrar mensaje de que la aplicación está lista con datos vacíos
+      console.log('✅ Aplicación lista con datos vacíos después del borrado');
     }
   }
 
