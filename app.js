@@ -348,6 +348,11 @@
   let config = { matchMinutes: 80, theme: 'dark', bg: null, primary: null };
   let isAuthenticated = false;
 
+  // Función para verificar si el usuario actual es anónimo
+  function isAnonymousUser() {
+    return cloud.auth && cloud.auth.currentUser && cloud.auth.currentUser.isAnonymous;
+  }
+
   // ---- Firebase / Cloud Sync ----
   const STORAGE_KEYS_CLOUD = {
     cloudEnabled: 'asistencia_cloud_enabled',
@@ -419,12 +424,20 @@
         cloud.auth = firebase.auth(cloud.app);
       }
 
-      // No forzamos login anónimo: el usuario debe iniciar sesión para editar
+      // Si no hay sesión iniciada, usar autenticación anónima para lectura pública
+      if (!isAuthenticated) {
+        try {
+          await cloud.auth.signInAnonymously();
+          console.log('✅ Autenticación anónima exitosa para lectura pública');
+        } catch (error) {
+          console.error('❌ Error en autenticación anónima:', error);
+        }
+      }
 
       // Cargar datos iniciales de Firebase (públicos)
       await loadDataFromFirebase();
       
-      // Iniciar sincronización en tiempo real sólo si hay sesión
+      // Iniciar sincronización en tiempo real sólo si hay sesión de usuario real
       if (isAuthenticated) {
         startCloudSync();
       }
@@ -811,7 +824,30 @@
       
     } catch (error) {
       console.error('❌ Error cargando datos desde Firebase:', error);
-      alert('Error al cargar datos desde Firebase: ' + error.message);
+      
+      // Si es un error de permisos, intentar con autenticación anónima
+      if (error.code === 'permission-denied' && !isAnonymousUser()) {
+        try {
+          console.log('🔄 Intentando autenticación anónima...');
+          await cloud.auth.signInAnonymously();
+          // Reintentar la carga de datos
+          await loadDataFromFirebase();
+          return;
+        } catch (anonError) {
+          console.error('❌ Error en autenticación anónima:', anonError);
+        }
+      }
+      
+      // Mostrar mensaje de error más amigable
+      const errorMessage = error.code === 'permission-denied' 
+        ? 'No se pueden cargar los datos. Verifica las reglas de seguridad de Firebase.'
+        : 'Error al cargar datos desde Firebase: ' + error.message;
+      
+      console.error(errorMessage);
+      // No mostrar alert para errores de permisos, solo log
+      if (error.code !== 'permission-denied') {
+        alert(errorMessage);
+      }
     } finally {
       isApplyingCloudSnapshot = false;
       // Ocultar indicador de carga
@@ -1054,6 +1090,11 @@
         try {
           if (cloud.auth && cloud.auth.currentUser) {
             await cloud.auth.signOut();
+            // Después del logout, iniciar sesión anónima para mantener acceso de lectura
+            if (cloud.enabled && cloud.db) {
+              await cloud.auth.signInAnonymously();
+              console.log('✅ Autenticación anónima restaurada después del logout');
+            }
           }
         } catch {}
         isAuthenticated = false;
