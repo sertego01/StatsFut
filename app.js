@@ -482,6 +482,17 @@
       
       // Mostrar mensaje de datos cargados
 
+    }, (error) => {
+      console.error('Error cargando jugadores desde Firebase:', error);
+      if (error.code === 'permission-denied') {
+        console.log('Permisos denegados, cargando datos desde localStorage...');
+        loadState();
+        renderPlayersList();
+        renderAttendanceList();
+        renderMatchPlayerForm();
+        renderMatchStats();
+        renderRecentMatchEntries();
+      }
     });
 
     // Sincronizar sesiones
@@ -532,6 +543,17 @@
       renderRecentSessions();
       if (inputSessionDate.value) {
         renderAttendanceList();
+      }
+    }, (error) => {
+      console.error('Error cargando sesiones desde Firebase:', error);
+      if (error.code === 'permission-denied') {
+        console.log('Permisos denegados, cargando sesiones desde localStorage...');
+        loadState();
+        renderStats();
+        renderRecentSessions();
+        if (inputSessionDate.value) {
+          renderAttendanceList();
+        }
       }
     });
 
@@ -589,6 +611,14 @@
       if (!initialSyncCompleted) {
         initialSyncCompleted = true;
       }
+    }, (error) => {
+      console.error('Error cargando entradas de partido desde Firebase:', error);
+      if (error.code === 'permission-denied') {
+        console.log('Permisos denegados, cargando partidos desde localStorage...');
+        loadState();
+        renderMatchStats();
+        renderRecentMatchEntries();
+      }
     });
 
     // Sincronizar rivales
@@ -635,6 +665,14 @@
       // Refrescar UI
       renderRivalsList();
       renderCalendar();
+    }, (error) => {
+      console.error('Error cargando rivales desde Firebase:', error);
+      if (error.code === 'permission-denied') {
+        console.log('Permisos denegados, cargando rivales desde localStorage...');
+        loadState();
+        renderRivalsList();
+        renderCalendar();
+      }
     });
 
     // Sincronizar resultados de partidos (para el calendario)
@@ -681,6 +719,14 @@
       saveState();
       renderCalendar();
       renderRivalsList(); // Para actualizar las jornadas mostradas en cada rival
+    }, (error) => {
+      console.error('Error cargando resultados de partidos desde Firebase:', error);
+      if (error.code === 'permission-denied') {
+        console.log('Permisos denegados, cargando resultados desde localStorage...');
+        loadState();
+        renderCalendar();
+        renderRivalsList();
+      }
     });
 
     // Sincronizar convocatorias
@@ -728,6 +774,15 @@
       renderConvocationList();
       renderRecentConvocations();
       renderStats(); // Para actualizar estadísticas de convocatorias
+    }, (error) => {
+      console.error('Error cargando convocatorias desde Firebase:', error);
+      if (error.code === 'permission-denied') {
+        console.log('Permisos denegados, cargando convocatorias desde localStorage...');
+        loadState();
+        renderConvocationList();
+        renderRecentConvocations();
+        renderStats();
+      }
     });
 
   }
@@ -3796,20 +3851,24 @@
       document.getElementById('players-list').innerHTML = loadingMessage;
     }
     
-    // Mostrar mensaje de carga en estadísticas
+    // Renderizar estadísticas con datos de fallback
     if (document.getElementById('stats-table')) {
-      const statsEmpty = document.getElementById('stats-empty');
-      if (statsEmpty) {
-        statsEmpty.classList.toggle('is-hidden', false);
-        statsEmpty.textContent = 'Cargando datos desde Firebase...';
-      }
+      renderStats();
     }
   }
 
   function init() {
-    // 🚀 CARGAR DATOS DESDE FIREBASE - Sin usar localStorage como caché
-    // Los datos se cargarán desde Firebase cada vez que se recargue la página
-    console.log('Inicializando aplicación - datos se cargarán desde Firebase');
+    // 🚀 CARGAR DATOS DESDE FIREBASE - Con fallback a localStorage
+    // Los datos se cargarán desde Firebase, pero si hay permisos denegados, se usarán datos locales
+    console.log('Inicializando aplicación - intentando cargar datos desde Firebase');
+    
+    // Cargar datos del localStorage como fallback inicial
+    loadState();
+    console.log('Datos de fallback cargados del localStorage:', { 
+      players: players.length, 
+      sessions: sessions.length, 
+      matches: matches.length 
+    });
     
     // Cargar configuración (mantener tema, Firebase, etc.)
     loadConfig();
