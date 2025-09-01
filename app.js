@@ -421,11 +421,12 @@
 
       // No forzamos login anónimo: el usuario debe iniciar sesión para editar
 
-      // Iniciar sincronización sólo si hay sesión
+      // Cargar datos iniciales de Firebase (públicos)
+      await loadDataFromFirebase();
+      
+      // Iniciar sincronización en tiempo real sólo si hay sesión
       if (isAuthenticated) {
         startCloudSync();
-        // Cargar datos iniciales de Firebase
-        await loadDataFromFirebase();
       }
       
 
@@ -734,7 +735,7 @@
 
   // Cargar datos desde Firebase
   async function loadDataFromFirebase() {
-    if (!cloud.enabled || !cloud.db || !isAuthenticated) return;
+    if (!cloud.enabled || !cloud.db) return;
     
     try {
       console.log('🔄 Cargando datos desde Firebase...');
@@ -961,7 +962,7 @@
     // Si la pestaña activa es restringida y no está autenticado, saltar a estadísticas
     const activeBtn = document.querySelector('.tab-btn.is-active');
     const activeTarget = activeBtn ? activeBtn.getAttribute('data-target') : null;
-    if (!isAuthenticated && ['tab-jugadores','tab-entrenamientos','tab-partidos'].includes(activeTarget)) {
+    if (!isAuthenticated && ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales','tab-calendario'].includes(activeTarget)) {
       const statsBtn = document.querySelector('.tab-btn[data-target="tab-estadisticas"]') || document.querySelector('.tab-btn[data-target="tab-estadisticas-partidos"]');
       if (statsBtn) statsBtn.click();
     }
@@ -1133,8 +1134,8 @@
     $$('.tab-btn', tabsNav).forEach(b => b.classList.toggle('is-active', b === btn));
     tabSections.forEach(sec => sec.classList.toggle('is-active', sec.id === targetId));
 
-    // Cargar datos de Firebase al cambiar de pestaña si está autenticado
-    if (cloud.enabled && cloud.db && isAuthenticated) {
+    // Cargar datos de Firebase al cambiar de pestaña
+    if (cloud.enabled && cloud.db) {
       try {
         await loadDataFromFirebase();
       } catch (error) {
@@ -1166,6 +1167,8 @@
 
   // ---- Render Jugadores ----
   function renderPlayersList() {
+    if (!playersList || !playersEmpty) return;
+    
     playersEmpty.classList.toggle('is-hidden', players.length > 0);
     playersList.innerHTML = '';
     players.forEach(p => {
@@ -1178,55 +1181,58 @@
       title.textContent = p.name;
       left.appendChild(title);
 
-      const btnEdit = document.createElement('button');
-      btnEdit.className = 'btn';
-      btnEdit.textContent = 'Renombrar';
-      btnEdit.addEventListener('click', () => {
-        const newName = prompt('Nuevo nombre para el jugador:', p.name);
-        if (newName && newName.trim()) {
-          p.name = newName.trim();
-          players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
-          saveState();
-          
-          // Sincronizar cambio con Firebase
-          if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
-            cloud.db.collection('players').doc(p.id).set(p).catch((error) => {
-              console.error('Error sincronizando cambio de nombre a la nube:', error);
-            });
+      // Solo mostrar botones de edición si hay sesión iniciada
+      if (isAuthenticated) {
+        const btnEdit = document.createElement('button');
+        btnEdit.className = 'btn';
+        btnEdit.textContent = 'Renombrar';
+        btnEdit.addEventListener('click', () => {
+          const newName = prompt('Nuevo nombre para el jugador:', p.name);
+          if (newName && newName.trim()) {
+            p.name = newName.trim();
+            players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+            saveState();
+            
+            // Sincronizar cambio con Firebase
+            if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+              cloud.db.collection('players').doc(p.id).set(p).catch((error) => {
+                console.error('Error sincronizando cambio de nombre a la nube:', error);
+              });
+            }
+            
+            renderPlayersList();
+            renderAttendanceList();
+            renderStats();
+            renderMatchPlayerForm();
+            renderMatchStats();
+            renderRecentMatchEntries();
           }
-          
-          renderPlayersList();
-          renderAttendanceList();
-          renderStats();
-          renderMatchPlayerForm();
-          renderMatchStats();
-          renderRecentMatchEntries();
-        }
-      });
+        });
 
-      const btnDelete = document.createElement('button');
-      btnDelete.className = 'btn danger';
-      btnDelete.textContent = 'Eliminar';
-      btnDelete.addEventListener('click', () => {
-        const confirmed = confirm(`¿Eliminar a "${p.name}"? Se quitará de todas las asistencias.`);
-        if (confirmed) {
-          removePlayerAndCleanup(p.id);
-          renderPlayersList();
-          renderAttendanceList();
-          renderStats();
-          if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
-            cloud.db.collection('players').doc(p.id).delete().catch((error) => {
-              console.error('Error eliminando jugador de la nube:', error);
-            });
+        const btnDelete = document.createElement('button');
+        btnDelete.className = 'btn danger';
+        btnDelete.textContent = 'Eliminar';
+        btnDelete.addEventListener('click', () => {
+          const confirmed = confirm(`¿Eliminar a "${p.name}"? Se quitará de todas las asistencias.`);
+          if (confirmed) {
+            removePlayerAndCleanup(p.id);
+            renderPlayersList();
+            renderAttendanceList();
+            renderStats();
+            if (cloud.enabled && cloud.db && !isApplyingCloudSnapshot) {
+              cloud.db.collection('players').doc(p.id).delete().catch((error) => {
+                console.error('Error eliminando jugador de la nube:', error);
+              });
+            }
+            renderMatchPlayerForm();
+            renderMatchStats();
+            renderRecentMatchEntries();
           }
-          renderMatchPlayerForm();
-          renderMatchStats();
-          renderRecentMatchEntries();
-        }
-      });
+        });
 
-      right.appendChild(btnEdit);
-      right.appendChild(btnDelete);
+        right.appendChild(btnEdit);
+        right.appendChild(btnDelete);
+      }
       li.appendChild(left);
       li.appendChild(right);
       playersList.appendChild(li);
@@ -1235,6 +1241,13 @@
 
   formAddPlayer.addEventListener('submit', (e) => {
     e.preventDefault();
+    
+    // Solo permitir añadir jugadores si hay sesión iniciada
+    if (!isAuthenticated) {
+      alert('Debes iniciar sesión para añadir jugadores.');
+      return;
+    }
+    
     const name = (inputPlayerName.value || '').trim();
     if (!name) return;
     const exists = players.some(p => p.name.toLowerCase() === name.toLowerCase());
@@ -3829,26 +3842,25 @@
 
   // ---- Inicialización ----
   function renderAll() {
-    // 🚫 NO renderizar datos hasta que Firebase esté listo
-    // Los datos se cargarán automáticamente desde la nube
-    
     // Solo renderizar elementos que no dependan de datos
     setupCollapsibleCards();
     applyThemeFromConfig();
     
-    // Mostrar mensaje de carga con información sobre la limpieza
-    const loadingMessage = `
-      <div class="loading">
-        <div style="margin-bottom: 10px;">🔄 Cargando datos desde la nube...</div>
-        <div style="font-size: 0.9em; color: #888;">
-          💡 <strong>localStorage limpiado automáticamente</strong><br>
-          Se eliminaron datos duplicados para evitar conflictos
+    // Si no hay sesión iniciada, mostrar mensaje informativo
+    if (!isAuthenticated) {
+      const infoMessage = `
+        <div class="loading">
+          <div style="margin-bottom: 10px;">📊 Cargando estadísticas públicas...</div>
+          <div style="font-size: 0.9em; color: #888;">
+            💡 <strong>Modo de solo lectura</strong><br>
+            Inicia sesión para editar datos
+          </div>
         </div>
-      </div>
-    `;
-    
-    if (document.getElementById('players-list')) {
-      document.getElementById('players-list').innerHTML = loadingMessage;
+      `;
+      
+      if (document.getElementById('players-list')) {
+        document.getElementById('players-list').innerHTML = infoMessage;
+      }
     }
   }
 
