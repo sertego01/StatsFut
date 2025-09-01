@@ -34,19 +34,26 @@
 
   function loadState() {
     try {
+      console.log('loadState ejecutándose...');
       const p = JSON.parse(localStorage.getItem(STORAGE_KEYS.players) || '[]');
       const s = JSON.parse(localStorage.getItem(STORAGE_KEYS.sessions) || '[]');
       const m = JSON.parse(localStorage.getItem(STORAGE_KEYS.matches) || '[]');
       const c = JSON.parse(localStorage.getItem(STORAGE_KEYS.convocations) || '[]');
       const r = JSON.parse(localStorage.getItem(STORAGE_KEYS.rivals) || '[]');
       const mr = JSON.parse(localStorage.getItem(STORAGE_KEYS.matchResults) || '[]');
+      
+      console.log('Datos del localStorage:', { p: p.length, s: s.length, m: m.length, c: c.length, r: r.length, mr: mr.length });
+      
       if (Array.isArray(p)) players = p; else players = [];
       if (Array.isArray(s)) sessions = s; else sessions = [];
       if (Array.isArray(m)) matches = m; else matches = [];
       if (Array.isArray(c)) convocations = c; else convocations = [];
       if (Array.isArray(r)) rivals = r; else rivals = [];
       if (Array.isArray(mr)) matchResults = mr; else matchResults = [];
+      
+      console.log('Datos asignados a variables:', { players: players.length, sessions: sessions.length, matches: matches.length });
     } catch (e) {
+      console.error('Error en loadState:', e);
       players = [];
       sessions = [];
       matches = [];
@@ -422,7 +429,9 @@
       // No forzamos login anónimo: el usuario debe iniciar sesión para editar
 
       // Iniciar sincronización sólo si hay sesión
-      if (isAuthenticated) startCloudSync();
+      if (isAuthenticated) {
+        startCloudSync();
+      }
       
 
     } catch (error) {
@@ -1033,8 +1042,10 @@
     } else if (targetId === 'tab-estadisticas-partidos') {
       renderMatchStats();
     }
-    // Inicia sync en segundo plano si se ha activado
-    if (cloud.enabled && cloud.db) startCloudSync();
+    // Inicia sync en segundo plano si se ha activado y no está ya iniciado
+    if (cloud.enabled && cloud.db && !cloudSyncStarted) {
+      startCloudSync();
+    }
   }
 
   tabsNav.addEventListener('click', onTabClick);
@@ -3806,24 +3817,24 @@
     // Fecha por defecto (usar fecha actual ya que limpiamos lastSelectedDate)
     inputSessionDate.value = todayISO();
     
-    // Cargar datos del localStorage si no hay sesión activa
-    // Esto incluye la primera carga de la página
-    if (!isAuthenticated) {
-      loadState(); // Cargar datos locales para usuarios no autenticados
-      console.log('Datos cargados del localStorage:', { 
-        players: players.length, 
-        sessions: sessions.length, 
-        matches: matches.length 
-      });
-    }
+    // Cargar datos del localStorage siempre en la inicialización
+    // Para usuarios no autenticados: datos locales
+    // Para usuarios autenticados: datos locales como fallback hasta que Firebase cargue
+    loadState();
+    console.log('Datos cargados del localStorage en init:', { 
+      players: players.length, 
+      sessions: sessions.length, 
+      matches: matches.length,
+      isAuthenticated 
+    });
     
     renderAll();
     applyThemeFromConfig();
     setupAuthUI();
     applyAuthRestrictions();
     
-    // Renderizar estadísticas después de cargar datos (para usuarios no autenticados)
-    if (!isAuthenticated && document.getElementById('stats-table')) {
+    // Renderizar estadísticas después de cargar datos
+    if (document.getElementById('stats-table')) {
       renderStats();
     }
     
