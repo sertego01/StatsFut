@@ -1263,6 +1263,14 @@
     const from = inputStatsFrom.value || null;
     const to = inputStatsTo.value || null;
     
+    console.log('renderStats ejecutándose:', { 
+      isAuthenticated, 
+      from, 
+      to, 
+      sessionsCount: sessions.length,
+      playersCount: players.length 
+    });
+    
     // Si no está autenticado y no hay fechas seleccionadas, mostrar mensaje de instrucción
     if (!isAuthenticated && !from && !to) {
       statsTbody.innerHTML = '';
@@ -3763,7 +3771,8 @@
     }
     
     // Renderizar estadísticas iniciales (con mensaje de instrucción si no está autenticado)
-    if (document.getElementById('stats-table')) {
+    // Solo renderizar si no está autenticado, ya que si está autenticado se renderizará desde Firebase
+    if (!isAuthenticated && document.getElementById('stats-table')) {
       renderStats();
     }
   }
@@ -3775,6 +3784,7 @@
     
     // 🧹 LIMPIEZA AUTOMÁTICA: Solo limpiar localStorage si está autenticado
     // Para usuarios no autenticados, necesitamos mantener los datos locales
+    // NOTA: isAuthenticated es false en la primera carga, así que no se limpian datos
     if (isAuthenticated) {
       clearLocalStorageData();
     }
@@ -3797,14 +3807,25 @@
     inputSessionDate.value = todayISO();
     
     // Cargar datos del localStorage si no hay sesión activa
+    // Esto incluye la primera carga de la página
     if (!isAuthenticated) {
       loadState(); // Cargar datos locales para usuarios no autenticados
+      console.log('Datos cargados del localStorage:', { 
+        players: players.length, 
+        sessions: sessions.length, 
+        matches: matches.length 
+      });
     }
     
     renderAll();
     applyThemeFromConfig();
     setupAuthUI();
     applyAuthRestrictions();
+    
+    // Renderizar estadísticas después de cargar datos (para usuarios no autenticados)
+    if (!isAuthenticated && document.getElementById('stats-table')) {
+      renderStats();
+    }
     
     // Inicializar Firebase si está habilitado
     if (cloud.enabled) {
