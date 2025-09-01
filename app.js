@@ -872,6 +872,11 @@
       if (recentSessionsCard) {
         recentSessionsCard.style.display = isAuthenticated ? '' : 'none';
       }
+      
+      // Si no está autenticado, mostrar mensaje de instrucción en estadísticas
+      if (!isAuthenticated && document.getElementById('stats-table')) {
+        renderStats();
+      }
     
     // Ajustar layout del footer según autenticación
     const footerTopRow = document.querySelector('.footer-top-row');
@@ -1007,6 +1012,11 @@
     } else if (targetId === 'tab-estadisticas') {
       renderStats();
       renderRecentSessions();
+      
+      // Si no está autenticado, asegurar que se muestre el mensaje de instrucción
+      if (!isAuthenticated) {
+        renderStats();
+      }
     } else if (targetId === 'tab-partidos') {
       renderMatchPlayerForm();
       renderRecentMatchEntries();
@@ -1243,13 +1253,45 @@
   function renderStats() {
     const from = inputStatsFrom.value || null;
     const to = inputStatsTo.value || null;
+    
+    // Si no está autenticado y no hay fechas seleccionadas, mostrar mensaje de instrucción
+    if (!isAuthenticated && !from && !to) {
+      statsTbody.innerHTML = '';
+      statsEmpty.classList.toggle('is-hidden', false);
+      statsEmpty.classList.add('instruction');
+      statsTable.style.display = 'none';
+      statsEmpty.textContent = 'Selecciona un rango de fechas y haz clic en "Buscar" para ver las estadísticas.';
+      
+      // Limpiar detalle
+      if (statsDetailList) statsDetailList.innerHTML = '';
+      if (statsDetailEmpty) statsDetailEmpty.style.display = '';
+      return;
+    }
+    
     const { totalSessions, rows } = computeStats(from, to);
     statsTbody.innerHTML = '';
     statsEmpty.classList.toggle('is-hidden', totalSessions > 0);
     statsTable.style.display = totalSessions > 0 ? 'table' : 'none';
-    // limpia detalle
+    
+    // Quitar clase de instrucción si hay datos
+    if (totalSessions > 0) {
+      statsEmpty.classList.remove('instruction');
+    }
+    
+    // Si no hay sesiones en el rango seleccionado
+    if (totalSessions === 0) {
+      statsEmpty.classList.remove('instruction');
+      if (from || to) {
+        statsEmpty.textContent = 'No hay sesiones registradas en el rango de fechas seleccionado.';
+      } else {
+        statsEmpty.textContent = 'No hay sesiones registradas.';
+      }
+    }
+    
+    // Limpiar detalle
     if (statsDetailList) statsDetailList.innerHTML = '';
     if (statsDetailEmpty) statsDetailEmpty.style.display = '';
+    
     rows.forEach(r => {
       const tr = document.createElement('tr');
       const tdName = document.createElement('td');
@@ -1698,8 +1740,20 @@
 
   // Filtros
   formStatsFilter.addEventListener('input', () => {
-    renderStats();
+    // Solo renderizar automáticamente si está autenticado
+    if (isAuthenticated) {
+      renderStats();
+    }
   });
+  
+  // Botón de buscar (para usuarios no autenticados)
+  const btnStatsSearch = document.getElementById('stats-search');
+  if (btnStatsSearch) {
+    btnStatsSearch.addEventListener('click', () => {
+      renderStats();
+    });
+  }
+  
   btnStatsClear.addEventListener('click', () => {
     inputStatsFrom.value = '';
     inputStatsTo.value = '';
@@ -3696,6 +3750,11 @@
     
     if (document.getElementById('players-list')) {
       document.getElementById('players-list').innerHTML = loadingMessage;
+    }
+    
+    // Renderizar estadísticas iniciales (con mensaje de instrucción si no está autenticado)
+    if (document.getElementById('stats-table')) {
+      renderStats();
     }
   }
 
