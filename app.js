@@ -1470,6 +1470,13 @@
     // limpia detalle
     if (statsDetailList) statsDetailList.innerHTML = '';
     if (statsDetailEmpty) statsDetailEmpty.style.display = '';
+    
+    // Resetear el título del detalle cuando no hay jugador seleccionado
+    const statsDetailTitle = document.querySelector('#stats-detail h3');
+    if (statsDetailTitle) {
+      statsDetailTitle.textContent = 'Detalle de sesiones';
+    }
+    
     rows.forEach(r => {
       const tr = document.createElement('tr');
       const tdName = document.createElement('td');
@@ -1495,6 +1502,17 @@
 
   function renderPlayerAttendanceDetail(playerId, from, to) {
     if (!statsDetailList || !statsDetailEmpty) return;
+    
+    // Obtener el nombre del jugador
+    const player = players.find(p => p.id === playerId);
+    const playerName = player ? player.name : 'Jugador desconocido';
+    
+    // Actualizar el título del detalle para incluir el nombre del jugador
+    const statsDetailTitle = document.querySelector('#stats-detail h3');
+    if (statsDetailTitle) {
+      statsDetailTitle.textContent = `Detalle de sesiones - ${playerName}`;
+    }
+    
     const filtered = sessions.filter(s => {
       if (from && s.date < from) return false;
       if (to && s.date > to) return false;
@@ -1516,7 +1534,7 @@
     rows.sort((a, b) => a.date.localeCompare(b.date));
     statsDetailList.innerHTML = '';
     if (rows.length === 0) {
-      statsDetailEmpty.textContent = 'No hay faltas o retrasos en el rango seleccionado.';
+      statsDetailEmpty.textContent = `No hay faltas o retrasos para ${playerName} en el rango seleccionado.`;
       statsDetailEmpty.style.display = '';
       return;
     }
