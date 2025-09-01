@@ -493,7 +493,9 @@
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
+      // Pero permitir que se actualicen si hay cambios en Firebase
       if (!initialSyncCompleted && sessions.length > 0) {
+        initialSyncCompleted = true;
         return;
       }
       
@@ -543,6 +545,7 @@
       if (isApplyingCloudSnapshot) return;
       
       // En la sincronización inicial, solo cargar datos si no hay datos locales
+      // Pero permitir que se actualicen si hay cambios en Firebase
       if (!initialSyncCompleted && matches.length > 0) {
         initialSyncCompleted = true;
         return;
@@ -3781,14 +3784,23 @@
       }
     }
     
-    // Renderizar estadísticas iniciales (con mensaje de instrucción si no está autenticado)
-    // Solo renderizar si no está autenticado, ya que si está autenticado se renderizará desde Firebase
-    if (!isAuthenticated && document.getElementById('stats-table')) {
-      renderStats();
-    }
+    // Los datos ya están cargados, no necesitamos renderizar estadísticas aquí
+    // Se renderizarán después en init()
   }
 
   function init() {
+    // 🚀 CARGAR DATOS INMEDIATAMENTE - Esto es lo más importante
+    // Cargar datos del localStorage siempre en la inicialización
+    // Para usuarios no autenticados: datos locales
+    // Para usuarios autenticados: datos locales como fallback hasta que Firebase cargue
+    loadState();
+    console.log('Datos cargados del localStorage en init:', { 
+      players: players.length, 
+      sessions: sessions.length, 
+      matches: matches.length,
+      isAuthenticated 
+    });
+    
     // Cargar configuración (mantener tema, Firebase, etc.)
     loadConfig();
     loadCloudConfig();
@@ -3817,17 +3829,6 @@
     // Fecha por defecto (usar fecha actual ya que limpiamos lastSelectedDate)
     inputSessionDate.value = todayISO();
     
-    // Cargar datos del localStorage siempre en la inicialización
-    // Para usuarios no autenticados: datos locales
-    // Para usuarios autenticados: datos locales como fallback hasta que Firebase cargue
-    loadState();
-    console.log('Datos cargados del localStorage en init:', { 
-      players: players.length, 
-      sessions: sessions.length, 
-      matches: matches.length,
-      isAuthenticated 
-    });
-    
     renderAll();
     applyThemeFromConfig();
     setupAuthUI();
@@ -3842,6 +3843,14 @@
     if (cloud.enabled) {
       initFirebaseIfEnabled();
     }
+    
+    // Asegurar que las estadísticas se rendericen con los datos cargados
+    console.log('Inicialización completada. Datos disponibles:', {
+      players: players.length,
+      sessions: sessions.length,
+      matches: matches.length,
+      isAuthenticated
+    });
   }
 
 
