@@ -960,15 +960,17 @@
 
   // ---- Auth: control de visibilidad/edición ----
   function applyAuthRestrictions() {
-    // Tabs restringidas
-    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales','tab-calendario'];
+    // Tabs restringidas (calendario ahora es público)
+    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales'];
+    const publicTargets = ['tab-estadisticas','tab-estadisticas-partidos','tab-calendario'];
     const allTabButtons = Array.from(document.querySelectorAll('.tab-btn'));
     allTabButtons.forEach(btn => {
       const target = btn.getAttribute('data-target');
       const isRestricted = restrictedTargets.includes(target);
-      // Mostrar solo estadísticas y login si no está autenticado
+      const isPublic = publicTargets.includes(target);
+      // Mostrar estadísticas, calendario y login si no está autenticado
       if (!isAuthenticated) {
-        if (target === 'tab-estadisticas' || target === 'tab-estadisticas-partidos') {
+        if (isPublic) {
           btn.style.display = '';
         } else {
           btn.style.display = 'none';
@@ -979,29 +981,38 @@
       }
     });
 
-    // Ajustar textos de los botones de estadísticas y hacerlos ocupar todo el ancho cuando NO hay sesión
+    // Ajustar textos de los botones de estadísticas cuando NO hay sesión
     const btnStatsTrain = document.querySelector('.tab-btn[data-target="tab-estadisticas"]');
     const btnStatsMatch = document.querySelector('.tab-btn[data-target="tab-estadisticas-partidos"]');
+    const btnCalendar = document.querySelector('.tab-btn[data-target="tab-calendario"]');
+    
     if (!isAuthenticated) {
       if (btnStatsTrain) {
         btnStatsTrain.textContent = 'Estadísticas de entrenamientos';
-        btnStatsTrain.style.width = '100%';
       }
       if (btnStatsMatch) {
         btnStatsMatch.textContent = 'Estadísticas de partidos';
-        btnStatsMatch.style.width = '100%';
+      }
+      if (btnCalendar) {
+        btnCalendar.textContent = 'Calendario de partidos';
       }
     } else {
-      if (btnStatsTrain) { btnStatsTrain.textContent = 'Estadísticas'; btnStatsTrain.style.width = ''; }
-      if (btnStatsMatch) { btnStatsMatch.textContent = 'Estadísticas'; btnStatsMatch.style.width = ''; }
+      if (btnStatsTrain) { btnStatsTrain.textContent = 'Estadísticas'; }
+      if (btnStatsMatch) { btnStatsMatch.textContent = 'Estadísticas'; }
+      if (btnCalendar) { btnCalendar.textContent = 'Calendario'; }
     }
 
-    // Forzar filas de pestañas a 1 columna cuando solo queda un botón visible (modo sin sesión)
+    // Ajustar layout de filas de pestañas según el número de botones visibles
     const tabRows = Array.from(document.querySelectorAll('.tabs-nav .tabs-row'));
     tabRows.forEach(row => {
       const visibleButtons = Array.from(row.querySelectorAll('.tab-btn')).filter(b => b.style.display !== 'none');
       if (!isAuthenticated) {
-        row.style.gridTemplateColumns = '1fr';
+        // Con 3 pestañas públicas, usar layout de 2 columnas para mejor distribución
+        if (visibleButtons.length >= 3) {
+          row.style.gridTemplateColumns = '1fr 1fr';
+        } else {
+          row.style.gridTemplateColumns = '1fr';
+        }
       } else {
         // Restaurar layout por defecto
         row.style.gridTemplateColumns = '';
@@ -1020,7 +1031,7 @@
     // Si la pestaña activa es restringida y no está autenticado, saltar a estadísticas
     const activeBtn = document.querySelector('.tab-btn.is-active');
     const activeTarget = activeBtn ? activeBtn.getAttribute('data-target') : null;
-    if (!isAuthenticated && ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales','tab-calendario'].includes(activeTarget)) {
+    if (!isAuthenticated && ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales'].includes(activeTarget)) {
       const statsBtn = document.querySelector('.tab-btn[data-target="tab-estadisticas"]') || document.querySelector('.tab-btn[data-target="tab-estadisticas-partidos"]');
       if (statsBtn) statsBtn.click();
     }
@@ -1043,21 +1054,21 @@
     if (btnSettings) {
       btnSettings.style.display = isAuthenticated ? '' : 'none';
     }
-    
-          // Ocultar cards de sesiones cuando no hay sesión iniciada
-      const trainingCards = document.querySelectorAll('#tab-entrenamientos .card');
-      trainingCards.forEach(card => {
-        // Ocultar todas las cards excepto las que contengan estadísticas
-        if (!card.querySelector('.stats-table') && !card.querySelector('#stats-card')) {
-          card.style.display = isAuthenticated ? '' : 'none';
-        }
-      });
-      
-      // Ocultar específicamente la card de sesiones recientes cuando no hay sesión
-      const recentSessionsCard = document.querySelector('#recent-sessions-card');
-      if (recentSessionsCard) {
-        recentSessionsCard.style.display = isAuthenticated ? '' : 'none';
+
+    // Ocultar cards de sesiones cuando no hay sesión iniciada
+    const trainingCards = document.querySelectorAll('#tab-entrenamientos .card');
+    trainingCards.forEach(card => {
+      // Ocultar todas las cards excepto las que contengan estadísticas
+      if (!card.querySelector('.stats-table') && !card.querySelector('#stats-card')) {
+        card.style.display = isAuthenticated ? '' : 'none';
       }
+    });
+    
+    // Ocultar específicamente la card de sesiones recientes cuando no hay sesión
+    const recentSessionsCard = document.querySelector('#recent-sessions-card');
+    if (recentSessionsCard) {
+      recentSessionsCard.style.display = isAuthenticated ? '' : 'none';
+    }
     
     // Ajustar layout del footer según autenticación
     const footerTopRow = document.querySelector('.footer-top-row');
@@ -2476,8 +2487,17 @@
       
       // Validar máximo 18 jugadores convocados
       if (convocadosCount > 18) {
-        alert(`No se puede guardar la convocatoria. Máximo 18 jugadores convocados. Actualmente: ${convocadosCount}`);
-        return;
+        const confirmExceed = confirm(
+          `⚠️ ADVERTENCIA: Has convocado ${convocadosCount} jugadores (máximo recomendado: 18)\n\n` +
+          `¿Quieres continuar de todas formas?\n\n` +
+          `• CANCELAR: Volver para eliminar jugadores\n` +
+          `• ACEPTAR: Guardar con ${convocadosCount} jugadores`
+        );
+        
+        if (!confirmExceed) {
+          return; // El usuario canceló, volver al formulario
+        }
+        // Si confirma, continuar con el guardado
       }
       
       // Validar que al menos haya 11 jugadores convocados
@@ -3460,10 +3480,18 @@
       resultDisplay.className = 'calendar-result';
       resultDisplay.textContent = result.result || 'SR';
       
-      // Hacer el partido clickeable para abrir el modal del rival
-      match.addEventListener('click', () => {
-        openRivalFromCalendar(rival.id);
-      });
+      // Hacer el partido clickeable solo si hay sesión iniciada
+      if (isAuthenticated) {
+        match.style.cursor = 'pointer';
+        match.addEventListener('click', () => {
+          openRivalFromCalendar(rival.id);
+        });
+      } else {
+        match.style.cursor = 'default';
+        // Añadir indicador visual de que no es clickeable
+        match.style.opacity = '0.8';
+        match.title = 'Inicia sesión para ver detalles del partido';
+      }
       
       item.appendChild(date);
       item.appendChild(match);
