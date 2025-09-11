@@ -3456,6 +3456,13 @@
       const date = document.createElement('div');
       date.className = 'calendar-date';
       
+      // Añadir clase por local/visitante para estilado
+      if (result.location === 'local') {
+        date.classList.add('local');
+      } else if (result.location === 'visitante') {
+        date.classList.add('visitante');
+      }
+      
       if (result.date) {
         const resultDate = new Date(result.date);
         const day = document.createElement('div');

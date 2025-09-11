@@ -629,22 +629,35 @@ table.table th { color: var(--muted); font-weight: 500; }
 }
 
 .calendar-date {
+  width: 56px;
+  min-width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* Estilo por condición local/visitante */
+.calendar-date.local {
   background: var(--primary);
-  color: #052e2b;
-  padding: 8px 12px;
-  border-radius: 8px;
-  text-align: center;
-  min-width: 80px;
+  color: #0b1226;
+}
+.calendar-date.visitante {
+  background: #64748b; /* slate-500 como contraste */
+  color: #0b1226;
 }
 
 .calendar-date .day {
-  font-size: 1.2em;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
 }
-
 .calendar-date .month {
-  font-size: 0.8em;
+  font-size: 11px;
   text-transform: uppercase;
+  opacity: 0.9;
 }
 
 .calendar-match {
