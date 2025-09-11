@@ -828,6 +828,17 @@
         matchResults.push(doc.data());
       });
       
+      // Deduplicar resultados localmente por (rivalId + journey), manteniendo el más reciente (por createdAt)
+      const uniqueByKey = new Map();
+      matchResults.forEach(res => {
+        const key = `${res.rivalId}__${res.journey}`;
+        const prev = uniqueByKey.get(key);
+        if (!prev || (Number(res.createdAt || 0) > Number(prev.createdAt || 0))) {
+          uniqueByKey.set(key, res);
+        }
+      });
+      matchResults = Array.from(uniqueByKey.values());
+      
       // Guardar en localStorage
       saveState();
       
@@ -2665,8 +2676,22 @@
       const journeyBlocks = document.querySelectorAll('.journey-block');
       let hasValidJourney = false;
       
-      // Eliminar jornadas existentes para este rival
+      // Eliminar jornadas existentes para este rival EN LOCAL
       matchResults = matchResults.filter(r => r.rivalId !== rival.id);
+      
+      // Además, eliminar jornadas existentes para este rival en Firebase antes de guardar nuevos (evita duplicados acumulados)
+      (async () => {
+        try {
+          if (cloud.enabled && cloud.db && isAuthenticated) {
+            const existingForRival = await cloud.db.collection('matchResults').where('rivalId', '==', rival.id).get();
+            const batch = cloud.db.batch();
+            existingForRival.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+          }
+        } catch (cleanupErr) {
+          console.warn('No se pudieron limpiar resultados previos del rival en Firebase:', cleanupErr);
+        }
+      })();
       
       // Procesar cada bloque de jornada
       const journeyResults = [];
