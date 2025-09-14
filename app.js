@@ -3802,7 +3802,6 @@
         playerSpan.textContent = playerName;
         
         info.appendChild(playerSpan);
-        info.appendChild(details);
         
         const amount = document.createElement('div');
         amount.className = 'fine-amount';
