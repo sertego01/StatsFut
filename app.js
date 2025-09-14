@@ -453,7 +453,6 @@
       if (!isAuthenticated) {
         try {
           await cloud.auth.signInAnonymously();
-          console.log('✅ Autenticación anónima exitosa para lectura pública');
         } catch (error) {
           console.error('❌ Error en autenticación anónima:', error);
         }
@@ -685,7 +684,6 @@
         return;
       }
       
-      console.log('🔄 Sincronización de resultados en tiempo real...');
       const changes = snapshot.docChanges();
       let hasChanges = false;
       
@@ -700,7 +698,6 @@
             const hasRealChanges = JSON.stringify(existing) !== JSON.stringify(resultData);
             
             if (hasRealChanges) {
-              console.log('🔄 Actualizando resultado existente:', resultData);
               matchResults[existingIndex] = { ...existing, ...resultData };
               hasChanges = true;
             }
@@ -712,11 +709,9 @@
             );
             
             if (!isDuplicate) {
-              console.log('✅ Añadiendo nuevo resultado desde Firebase:', resultData);
               matchResults.push(resultData);
               hasChanges = true;
             } else {
-              console.log('⚠️ Duplicado detectado en sincronización, ignorando:', resultData);
             }
           }
         } else if (change.type === 'removed') {
@@ -724,7 +719,6 @@
           const beforeLength = matchResults.length;
           matchResults = matchResults.filter(r => r.id !== resultId);
           if (matchResults.length !== beforeLength) {
-            console.log('🗑️ Resultado eliminado desde Firebase:', resultId);
             hasChanges = true;
           }
         }
@@ -732,7 +726,6 @@
       
       // Solo guardar y refrescar si hubo cambios reales
       if (hasChanges) {
-        console.log('💾 Guardando cambios y refrescando UI...');
         saveState();
         renderCalendar();
         renderRivalsList(); // Para actualizar las jornadas mostradas en cada rival
@@ -838,7 +831,6 @@
     if (!cloud.enabled || !cloud.db) return;
     
     try {
-      console.log('🔄 Cargando datos desde Firebase...');
       
       // Mostrar indicador de carga
       showLoadingIndicator('Cargando datos desde Firebase...');
@@ -921,7 +913,6 @@
       renderFinePlayerForm();
       renderFines();
       
-      console.log('✅ Datos cargados desde Firebase correctamente');
       
     } catch (error) {
       console.error('❌ Error cargando datos desde Firebase:', error);
@@ -929,7 +920,6 @@
       // Si es un error de permisos, intentar con autenticación anónima
       if (error.code === 'permission-denied' && !isAnonymousUser()) {
         try {
-          console.log('🔄 Intentando autenticación anónima...');
           await cloud.auth.signInAnonymously();
           // Reintentar la carga de datos
           await loadDataFromFirebase();
@@ -1205,7 +1195,6 @@
             // Después del logout, iniciar sesión anónima para mantener acceso de lectura
             if (cloud.enabled && cloud.db) {
               await cloud.auth.signInAnonymously();
-              console.log('✅ Autenticación anónima restaurada después del logout');
             }
           }
         } catch {}
@@ -2187,7 +2176,6 @@
       let firebaseError = null;
       
       if (cloud.enabled && cloud.db && isAuthenticated) {
-        console.log('🔥 Iniciando borrado de Firebase con usuario autenticado...');
         
         const collections = [
           { name: 'players', description: 'Jugadores' },
@@ -2200,7 +2188,6 @@
         
         for (const collection of collections) {
           try {
-            console.log(`🔄 Borrando colección: ${collection.name}`);
             const snapshot = await cloud.db.collection(collection.name).get();
             
             if (snapshot.docs.length > 0) {
@@ -2216,10 +2203,8 @@
                 
                 await batch.commit();
                 firebaseDeleted += batchDocs.length;
-                console.log(`✅ Borrados ${batchDocs.length} documentos de ${collection.description} (lote ${Math.floor(i/batchSize) + 1})`);
               }
             } else {
-              console.log(`ℹ️ Colección ${collection.description} ya está vacía`);
             }
           } catch (error) {
             console.error(`❌ Error borrando ${collection.description}:`, error);
@@ -3274,7 +3259,6 @@
 
   // Función para añadir resultado de partido
   async function addMatchResult(result) {
-    console.log('🔄 Añadiendo resultado:', result);
     
     // Limpiar duplicados antes de añadir
     aggressiveCleanDuplicates();
@@ -3285,11 +3269,9 @@
     );
     
     if (existingIndex >= 0) {
-      console.log('⚠️ Duplicado encontrado, reemplazando:', matchResults[existingIndex]);
       // Reemplazar el resultado existente
       matchResults[existingIndex] = result;
     } else {
-      console.log('✅ Añadiendo nuevo resultado');
       // Añadir el nuevo resultado
       matchResults.push(result);
     }
@@ -3301,9 +3283,7 @@
     // Sincronizar con Firebase si está disponible (solo escritura, no lectura)
     if (cloud.enabled && cloud.db && isAuthenticated) {
       try {
-        console.log('☁️ Sincronizando con Firebase...');
         await cloud.db.collection('matchResults').doc(result.id).set(result);
-        console.log('✅ Sincronización completada');
       } catch (error) {
         console.error('❌ Error sincronizando resultado con Firebase:', error);
       }
@@ -3461,7 +3441,6 @@
     
     if (uniqueMatches.length !== matches.length) {
       matches = uniqueMatches;
-      console.log(`Duplicados de partidos limpiados: ${matches.length} → ${uniqueMatches.length}`);
     }
     
     // Limpiar duplicados de sesiones
@@ -3477,7 +3456,6 @@
     
     if (uniqueSessions.length !== sessions.length) {
       sessions = uniqueSessions;
-      console.log(`Duplicados de sesiones limpiados: ${sessions.length} → ${uniqueSessions.length}`);
     }
     
     // Limpiar duplicados de rivales
@@ -3493,7 +3471,6 @@
     
     if (uniqueRivals.length !== rivals.length) {
       rivals = uniqueRivals;
-      console.log(`Duplicados de rivales limpiados: ${rivals.length} → ${uniqueRivals.length}`);
     }
     
     // Limpiar duplicados de resultados
@@ -3509,13 +3486,10 @@
       } else {
         // Guardar IDs de duplicados para logging
         duplicateIds.push(result.id);
-        console.log(`⚠️ Duplicado detectado: ${result.rivalId}-${result.journey} (ID: ${result.id})`);
       }
     });
     
     if (uniqueResults.length !== matchResults.length) {
-      console.log(`🧹 Limpiando duplicados de resultados: ${matchResults.length} → ${uniqueResults.length}`);
-      console.log(`🗑️ IDs de duplicados eliminados:`, duplicateIds);
       matchResults = uniqueResults;
     }
     
@@ -3531,7 +3505,6 @@
         const beforeCount = matchResults.length;
         cleanDuplicates();
         if (matchResults.length !== beforeCount) {
-          console.log('🔄 Limpieza periódica de duplicados completada');
           renderCalendar();
           renderRivalsList();
         }
@@ -3559,7 +3532,6 @@
       return; // No hay duplicados, salir sin hacer nada
     }
     
-    console.log('🧹 Iniciando limpieza agresiva de duplicados...');
     const duplicateIds = [];
     
     // Para cada grupo, mantener solo el más reciente
@@ -3567,7 +3539,6 @@
     Object.keys(groupedResults).forEach(key => {
       const group = groupedResults[key];
       if (group.length > 1) {
-        console.log(`⚠️ Encontrados ${group.length} duplicados para ${key}`);
         
         // Ordenar por fecha de creación (más reciente primero)
         group.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -3585,10 +3556,8 @@
     });
     
     if (duplicateIds.length > 0) {
-      console.log(`🗑️ Eliminando ${duplicateIds.length} duplicados:`, duplicateIds);
       matchResults = cleanedResults;
       saveState();
-      console.log(`✅ Limpieza completada: ${beforeCount} → ${matchResults.length} resultados`);
       return true; // Indica que hubo cambios
     }
     return false; // No hubo cambios
@@ -3712,10 +3681,7 @@
 
   // Función para abrir modal de resultado
   function openRivalResultModal(rival) {
-    console.log(`🔍 Abriendo modal para rival: ${rival.name}`);
-    
     // Limpiar duplicados inmediatamente antes de abrir el modal
-    console.log('🧹 Limpiando duplicados antes de abrir modal...');
     aggressiveCleanDuplicates();
     
     const modal = document.getElementById('rival-result-modal');
@@ -3773,9 +3739,6 @@
     
     // Limpiar duplicados antes de renderizar
     const hadDuplicates = aggressiveCleanDuplicates();
-    if (hadDuplicates) {
-      console.log('🔄 Duplicados eliminados, continuando con renderizado...');
-    }
     
     if (matchResults.length === 0) {
       calendarEmpty.style.display = '';
@@ -4241,7 +4204,6 @@
       return;
     }
     
-    console.log(`Configurando event listeners para jornada ${journeyNumber}`);
     
     // Event listener para Local
     locationLocal.addEventListener('click', () => {
@@ -4353,7 +4315,6 @@
     deleteBtn.style.pointerEvents = 'auto';
     deleteBtn.style.opacity = '1';
     
-    console.log(`🔧 Configurando botón de eliminar para partido ${partidoNumber}:`, deleteBtn);
     
     // Limpiar event listeners anteriores
     const newDeleteBtn = deleteBtn.cloneNode(true);
@@ -4369,11 +4330,9 @@
     newDeleteBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      console.log(`🗑️ Eliminando partido ${partidoNumber}`);
       deletePartido(partidoNumber);
     });
     
-    console.log(`✅ Botón de partido ${partidoNumber} configurado correctamente`);
   }
 
   // Función para eliminar un partido específico
@@ -4779,7 +4738,6 @@
     if (justDeleted) {
       // Limpiar la marca de borrado
       localStorage.removeItem('asistencia_just_deleted');
-      console.log('🔄 Aplicación iniciada después de borrado completo - no cargando datos');
     }
     
     // 🧹 LIMPIEZA AUTOMÁTICA: Eliminar datos duplicados del localStorage
@@ -4829,7 +4787,6 @@
       renderFinePlayerForm();
     } else if (justDeleted) {
       // Mostrar mensaje de que la aplicación está lista con datos vacíos
-      console.log('✅ Aplicación lista con datos vacíos después del borrado');
       // Renderizar formulario de multas incluso con datos vacíos
       renderFinePlayerForm();
     }
@@ -4853,16 +4810,13 @@
     window.cleanRivalDuplicates = (rivalName) => {
       const rival = rivals.find(r => r.name === rivalName);
       if (!rival) {
-        console.log(`❌ Rival "${rivalName}" no encontrado`);
         return;
       }
       
-      console.log(`🧹 Limpiando duplicados para ${rivalName}...`);
       const beforeCount = matchResults.length;
       const rivalResults = matchResults.filter(r => r.rivalId === rival.id);
       
       if (rivalResults.length <= 1) {
-        console.log(`✅ ${rivalName} no tiene duplicados`);
         return;
       }
       
@@ -4880,7 +4834,6 @@
       Object.keys(groupedByJourney).forEach(journey => {
         const group = groupedByJourney[journey];
         if (group.length > 1) {
-          console.log(`⚠️ Jornada ${journey}: ${group.length} duplicados`);
           // Mantener el más reciente
           group.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           cleanedResults.push(group[0]);
@@ -4895,7 +4848,6 @@
       
       saveState();
       
-      console.log(`✅ ${rivalName} limpiado: ${beforeCount} → ${matchResults.length} resultados`);
       
       // Refrescar UI solo una vez al final
       setTimeout(() => {
