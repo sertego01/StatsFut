@@ -802,6 +802,34 @@ table.table th { color: var(--muted); font-weight: 500; }
   color: #16a34a;
 }
 
+/* Modal de edición de multas */
+#edit-fine-modal .modal-content {
+  max-width: 500px;
+}
+
+#edit-fine-modal .form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+#edit-fine-modal .form-row label {
+  flex: 1;
+}
+
+#edit-fine-modal .form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.fine-item:hover {
+  background-color: #f5f5f5;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
 /* Estilos para mensajes de carga */
 .loading {
   text-align: center;

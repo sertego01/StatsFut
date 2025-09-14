@@ -264,11 +264,12 @@
             <label>
               <span>Motivo</span>
               <select id="fine-reason" required>
-                <option value="Tarde a entrenamientos">Tarde entrenamiento</option>
-                <option value="Tarde a partido">Tarde partido</option>
-                <option value="Olvidarser ropa">Olvidarse ropa</option>
-                <option value="Tarjetas por protestar">Tarjetas protestar</option>
-                <option value="Otros">Otros</option>
+                <option value="">Selecciona un motivo</option>
+                <option value="Llegar tarde entrenamiento">Llegar tarde entrenamiento</option>
+                <option value="Llegar tarde partido">Llegar tarde partido</option>
+                <option value="Olvidarse ropa">Olvidarse ropa</option>
+                <option value="Tarjetas protestar">Tarjetas protestar</option>
+                <option value="Otro">Otro</option>
               </select>
 
             </label>
@@ -301,7 +302,7 @@
 
         <div class="card">
           <h2>Resumen anual</h2>
-          <div id="fines-summary-empty" class="empty-state">No hay multas registradas este año.</div>
+          <div id="fines-summary-empty" class="empty-state">No hay multas pagadas este año.</div>
           <div id="fines-total" class="fines-total" style="display: none;">
             <h3>Total anual: <span id="fines-total-amount">0€</span></h3>
           </div>
@@ -539,6 +540,61 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de edición de multas -->
+    <div id="edit-fine-modal" class="modal" hidden>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Editar multa</h2>
+          <button type="button" class="btn-close" id="close-edit-fine">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="edit-fine-form">
+            <div class="form-row">
+              <label>
+                <span>Jugador</span>
+                <select id="edit-fine-player" required></select>
+              </label>
+              <label>
+                <span>Motivo</span>
+                <select id="edit-fine-reason" required>
+                  <option value="">Selecciona un motivo</option>
+                  <option value="Llegar tarde entrenamiento">Llegar tarde entrenamiento</option>
+                  <option value="Llegar tarde partido">Llegar tarde partido</option>
+                  <option value="Olvidarse ropa">Olvidarse ropa</option>
+                  <option value="Tarjetas protestar">Tarjetas protestar</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                <span>Fecha</span>
+                <input id="edit-fine-date" type="date" required />
+              </label>
+              <label>
+                <span>Importe (€)</span>
+                <input id="edit-fine-amount" type="number" step="0.01" min="0" required />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                <span>Estado</span>
+                <select id="edit-fine-status" required>
+                  <option value="pending">Pendiente</option>
+                  <option value="paid">Pagada</option>
+                  <option value="cancelled">Cancelada</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn secondary" id="cancel-edit-fine">Cancelar</button>
+              <button type="submit" class="btn primary">Guardar cambios</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

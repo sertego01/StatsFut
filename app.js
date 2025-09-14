@@ -1257,6 +1257,7 @@
   const btnMStatsClear = $('#mstats-clear');
 
   let mstatsSort = { key: 'goals', dir: 'desc' };
+  let editingFineId = null;
 
   // Multas
   const formAddFine = $('#form-add-fine');
@@ -1271,6 +1272,17 @@
   const finesSummaryEmpty = $('#fines-summary-empty');
   const finesTotal = $('#fines-total');
   const finesTotalAmount = $('#fines-total-amount');
+  
+  // Modal de edición de multas
+  const editFineModal = $('#edit-fine-modal');
+  const editFineForm = $('#edit-fine-form');
+  const selectEditFinePlayer = $('#edit-fine-player');
+  const selectEditFineReason = $('#edit-fine-reason');
+  const inputEditFineDate = $('#edit-fine-date');
+  const inputEditFineAmount = $('#edit-fine-amount');
+  const selectEditFineStatus = $('#edit-fine-status');
+  const closeEditFineBtn = $('#close-edit-fine');
+  const cancelEditFineBtn = $('#cancel-edit-fine');
 
   // ---- Navegación de pestañas ----
   async function onTabClick(e) {
@@ -2652,6 +2664,56 @@
     });
   }
 
+  // Event listeners para modal de edición de multas
+  if (closeEditFineBtn) {
+    closeEditFineBtn.addEventListener('click', closeEditFineModal);
+  }
+
+  if (cancelEditFineBtn) {
+    cancelEditFineBtn.addEventListener('click', closeEditFineModal);
+  }
+
+  if (editFineForm) {
+    editFineForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      if (!editingFineId) return;
+      
+      const playerId = selectEditFinePlayer ? selectEditFinePlayer.value : '';
+      const reason = selectEditFineReason ? selectEditFineReason.value.trim() : '';
+      const date = inputEditFineDate ? inputEditFineDate.value : '';
+      const amount = inputEditFineAmount ? parseFloat(inputEditFineAmount.value) : 0;
+      const status = selectEditFineStatus ? selectEditFineStatus.value : 'pending';
+      
+      if (!playerId || !reason || !date || amount <= 0) {
+        alert('Por favor, completa todos los campos correctamente.');
+        return;
+      }
+      
+      const paid = status === 'paid';
+      
+      // Si el estado es cancelado, eliminar la multa
+      if (status === 'cancelled') {
+        await deleteFine(editingFineId);
+        closeEditFineModal();
+        renderFines();
+        return;
+      }
+      
+      // Actualizar la multa
+      await updateFine(editingFineId, {
+        playerId,
+        reason,
+        date,
+        amount,
+        paid
+      });
+      
+      closeEditFineModal();
+      renderFines();
+    });
+  }
+
   // Event listener para fecha del partido
   if (inputMatchDate) {
     inputMatchDate.addEventListener('change', () => {
@@ -3720,9 +3782,18 @@
     pendingFines.forEach(fine => {
       const li = document.createElement('li');
       li.className = 'fine-item';
+      li.style.cursor = 'pointer';
+      li.title = 'Haz clic para editar';
       
-      const player = players.find(p => p.id === fine.playerId);
-      const playerName = player ? player.name : 'Jugador desconocido';
+      let playerName = 'Jugador desconocido';
+      if (fine.playerId === 'fran') {
+        playerName = 'Fran';
+      } else if (fine.playerId === 'teja') {
+        playerName = 'Teja';
+      } else {
+        const player = players.find(p => p.id === fine.playerId);
+        playerName = player ? player.name : 'Jugador desconocido';
+      }
       
       const info = document.createElement('div');
       info.className = 'fine-info';
@@ -3750,6 +3821,11 @@
       li.appendChild(amount);
       li.appendChild(status);
       
+      // Event listener para abrir modal de edición
+      li.addEventListener('click', () => {
+        openEditFineModal(fine);
+      });
+      
       finesPendingList.appendChild(li);
     });
   }
@@ -3760,7 +3836,7 @@
     const currentYear = new Date().getFullYear();
     const yearFines = fines.filter(f => {
       const fineYear = new Date(f.date).getFullYear();
-      return fineYear === currentYear;
+      return fineYear === currentYear && f.paid; // Solo multas pagadas
     });
     
     // Calcular total anual
@@ -3778,8 +3854,15 @@
     // Agrupar por jugador
     const playerTotals = {};
     yearFines.forEach(fine => {
-      const player = players.find(p => p.id === fine.playerId);
-      const playerName = player ? player.name : 'Jugador desconocido';
+      let playerName = 'Jugador desconocido';
+      if (fine.playerId === 'fran') {
+        playerName = 'Fran';
+      } else if (fine.playerId === 'teja') {
+        playerName = 'Teja';
+      } else {
+        const player = players.find(p => p.id === fine.playerId);
+        playerName = player ? player.name : 'Jugador desconocido';
+      }
       
       if (!playerTotals[playerName]) {
         playerTotals[playerName] = 0;
@@ -3817,6 +3900,7 @@
   function renderFines() {
     renderFinesPending();
     renderFinesSummary();
+    renderEditFinePlayerForm();
   }
 
   function renderFinePlayerForm() {
@@ -3824,27 +3908,84 @@
     
     selectFinePlayer.innerHTML = '';
     
-    if (players.length === 0) {
-      const defaultOpt = document.createElement('option');
-      defaultOpt.value = '';
-      defaultOpt.textContent = 'No hay jugadores registrados';
-      defaultOpt.disabled = true;
-      selectFinePlayer.appendChild(defaultOpt);
-      return;
-    }
-    
     const defaultOpt = document.createElement('option');
     defaultOpt.value = '';
     defaultOpt.textContent = 'Selecciona un jugador';
     defaultOpt.disabled = true;
     selectFinePlayer.appendChild(defaultOpt);
     
+    // Añadir jugadores registrados
     players.forEach(player => {
       const option = document.createElement('option');
       option.value = player.id;
       option.textContent = player.name;
       selectFinePlayer.appendChild(option);
     });
+    
+    // Añadir Fran y Teja como opciones especiales
+    const franOpt = document.createElement('option');
+    franOpt.value = 'fran';
+    franOpt.textContent = 'Fran';
+    selectFinePlayer.appendChild(franOpt);
+    
+    const tejaOpt = document.createElement('option');
+    tejaOpt.value = 'teja';
+    tejaOpt.textContent = 'Teja';
+    selectFinePlayer.appendChild(tejaOpt);
+  }
+
+  // Función para abrir el modal de edición de multas
+  function openEditFineModal(fine) {
+    editingFineId = fine.id;
+    
+    // Llenar el formulario con los datos de la multa
+    selectEditFinePlayer.value = fine.playerId;
+    selectEditFineReason.value = fine.reason;
+    inputEditFineDate.value = fine.date;
+    inputEditFineAmount.value = fine.amount;
+    selectEditFineStatus.value = fine.paid ? 'paid' : 'pending';
+    
+    // Mostrar el modal
+    editFineModal.removeAttribute('hidden');
+  }
+
+  // Función para cerrar el modal de edición
+  function closeEditFineModal() {
+    editFineModal.setAttribute('hidden', '');
+    editingFineId = null;
+    editFineForm.reset();
+  }
+
+  // Función para renderizar el select de jugadores en el modal de edición
+  function renderEditFinePlayerForm() {
+    if (!selectEditFinePlayer) return;
+    
+    selectEditFinePlayer.innerHTML = '';
+    
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Selecciona un jugador';
+    defaultOpt.disabled = true;
+    selectEditFinePlayer.appendChild(defaultOpt);
+    
+    // Añadir jugadores registrados
+    players.forEach(player => {
+      const option = document.createElement('option');
+      option.value = player.id;
+      option.textContent = player.name;
+      selectEditFinePlayer.appendChild(option);
+    });
+    
+    // Añadir Fran y Teja como opciones especiales
+    const franOpt = document.createElement('option');
+    franOpt.value = 'fran';
+    franOpt.textContent = 'Fran';
+    selectEditFinePlayer.appendChild(franOpt);
+    
+    const tejaOpt = document.createElement('option');
+    tejaOpt.value = 'teja';
+    tejaOpt.textContent = 'Teja';
+    selectEditFinePlayer.appendChild(tejaOpt);
   }
 
   // Función para abrir el modal de un rival desde el calendario
