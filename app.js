@@ -673,7 +673,9 @@
       renderCalendar();
     });
 
-    // Sincronizar resultados de partidos (para el calendario)
+    // Sincronizar resultados de partidos (para el calendario) - DESHABILITADO TEMPORALMENTE
+    // TODO: Rehabilitar cuando se solucione el problema de duplicados
+    /*
     cloud.db.collection('matchResults').onSnapshot((snapshot) => {
       if (!isAuthenticated) return;
       if (isApplyingCloudSnapshot) return;
@@ -736,6 +738,7 @@
         renderRivalsList(); // Para actualizar las jornadas mostradas en cada rival
       }
     });
+    */
 
     // Sincronizar convocatorias
     cloud.db.collection('convocations').onSnapshot((snapshot) => {
@@ -3255,6 +3258,9 @@
   async function addMatchResult(result) {
     console.log('🔄 Añadiendo resultado:', result);
     
+    // Limpiar duplicados antes de añadir
+    aggressiveCleanDuplicates();
+    
     // Verificar si ya existe un resultado para esta jornada y rival
     const existingIndex = matchResults.findIndex(r => 
       r.rivalId === result.rivalId && r.journey === result.journey
@@ -3274,7 +3280,7 @@
     // Las jornadas se mantienen en el orden que el usuario marca en el formulario
     saveState();
     
-    // Sincronizar con Firebase si está disponible
+    // Sincronizar con Firebase si está disponible (solo escritura, no lectura)
     if (cloud.enabled && cloud.db && isAuthenticated) {
       try {
         console.log('☁️ Sincronizando con Firebase...');
@@ -3513,6 +3519,57 @@
         }
       }
     }, 30000); // 30 segundos
+  }
+
+  // Función de limpieza agresiva de duplicados
+  function aggressiveCleanDuplicates() {
+    console.log('🧹 Iniciando limpieza agresiva de duplicados...');
+    const beforeCount = matchResults.length;
+    
+    // Agrupar por rival y jornada
+    const groupedResults = {};
+    const duplicateIds = [];
+    
+    matchResults.forEach(result => {
+      const key = `${result.rivalId}-${result.journey}`;
+      if (!groupedResults[key]) {
+        groupedResults[key] = [];
+      }
+      groupedResults[key].push(result);
+    });
+    
+    // Para cada grupo, mantener solo el más reciente
+    const cleanedResults = [];
+    Object.keys(groupedResults).forEach(key => {
+      const group = groupedResults[key];
+      if (group.length > 1) {
+        console.log(`⚠️ Encontrados ${group.length} duplicados para ${key}`);
+        
+        // Ordenar por fecha de creación (más reciente primero)
+        group.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        
+        // Mantener solo el primero (más reciente)
+        cleanedResults.push(group[0]);
+        
+        // Marcar los demás como duplicados
+        group.slice(1).forEach(duplicate => {
+          duplicateIds.push(duplicate.id);
+        });
+      } else {
+        cleanedResults.push(group[0]);
+      }
+    });
+    
+    if (duplicateIds.length > 0) {
+      console.log(`🗑️ Eliminando ${duplicateIds.length} duplicados:`, duplicateIds);
+      matchResults = cleanedResults;
+      saveState();
+      renderCalendar();
+      renderRivalsList();
+      console.log(`✅ Limpieza completada: ${beforeCount} → ${matchResults.length} resultados`);
+    } else {
+      console.log('✅ No se encontraron duplicados');
+    }
   }
 
   // Función para eliminar jugador
@@ -4734,6 +4791,61 @@
     
     // Iniciar limpieza periódica de duplicados
     startDuplicateCleanup();
+    
+    // Ejecutar limpieza agresiva inmediatamente
+    aggressiveCleanDuplicates();
+    
+    // Hacer las funciones disponibles globalmente para uso manual
+    window.cleanDuplicates = aggressiveCleanDuplicates;
+    window.cleanRivalDuplicates = (rivalName) => {
+      const rival = rivals.find(r => r.name === rivalName);
+      if (!rival) {
+        console.log(`❌ Rival "${rivalName}" no encontrado`);
+        return;
+      }
+      
+      console.log(`🧹 Limpiando duplicados para ${rivalName}...`);
+      const beforeCount = matchResults.length;
+      const rivalResults = matchResults.filter(r => r.rivalId === rival.id);
+      
+      if (rivalResults.length <= 1) {
+        console.log(`✅ ${rivalName} no tiene duplicados`);
+        return;
+      }
+      
+      // Agrupar por jornada
+      const groupedByJourney = {};
+      rivalResults.forEach(result => {
+        if (!groupedByJourney[result.journey]) {
+          groupedByJourney[result.journey] = [];
+        }
+        groupedByJourney[result.journey].push(result);
+      });
+      
+      // Limpiar duplicados por jornada
+      const cleanedResults = [];
+      Object.keys(groupedByJourney).forEach(journey => {
+        const group = groupedByJourney[journey];
+        if (group.length > 1) {
+          console.log(`⚠️ Jornada ${journey}: ${group.length} duplicados`);
+          // Mantener el más reciente
+          group.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          cleanedResults.push(group[0]);
+        } else {
+          cleanedResults.push(group[0]);
+        }
+      });
+      
+      // Actualizar matchResults
+      matchResults = matchResults.filter(r => r.rivalId !== rival.id);
+      matchResults.push(...cleanedResults);
+      
+      saveState();
+      renderCalendar();
+      renderRivalsList();
+      
+      console.log(`✅ ${rivalName} limpiado: ${beforeCount} → ${matchResults.length} resultados`);
+    };
   }
 
 
