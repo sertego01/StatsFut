@@ -830,6 +830,13 @@ table.table th { color: var(--muted); font-weight: 500; }
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* Deshabilitar hover cuando no hay sesión iniciada */
+.fine-item[style*="cursor: default"]:hover {
+  background-color: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
 /* Estilos para mensajes de carga */
 .loading {
   text-align: center;

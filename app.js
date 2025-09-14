@@ -3782,8 +3782,15 @@
     pendingFines.forEach(fine => {
       const li = document.createElement('li');
       li.className = 'fine-item';
-      li.style.cursor = 'pointer';
-      li.title = 'Haz clic para editar';
+      
+      // Solo hacer clickeable si hay sesión iniciada
+      if (isAuthenticated) {
+        li.style.cursor = 'pointer';
+        li.title = 'Haz clic para editar';
+      } else {
+        li.style.cursor = 'default';
+        li.title = 'Inicia sesión para editar';
+      }
       
       let playerName = 'Jugador desconocido';
       if (fine.playerId === 'fran') {
@@ -3821,10 +3828,12 @@
       li.appendChild(amount);
       li.appendChild(status);
       
-      // Event listener para abrir modal de edición
-      li.addEventListener('click', () => {
-        openEditFineModal(fine);
-      });
+      // Event listener para abrir modal de edición (solo si está autenticado)
+      if (isAuthenticated) {
+        li.addEventListener('click', () => {
+          openEditFineModal(fine);
+        });
+      }
       
       finesPendingList.appendChild(li);
     });
@@ -3936,6 +3945,12 @@
 
   // Función para abrir el modal de edición de multas
   function openEditFineModal(fine) {
+    // Solo permitir editar multas si hay sesión iniciada
+    if (!isAuthenticated) {
+      alert('Debes iniciar sesión para editar multas.');
+      return;
+    }
+    
     editingFineId = fine.id;
     
     // Llenar el formulario con los datos de la multa
@@ -4557,6 +4572,7 @@
     // Solo renderizar elementos que no dependan de datos
     setupCollapsibleCards();
     applyThemeFromConfig();
+    renderFinePlayerForm();
     
     // Si no hay sesión iniciada, mostrar mensaje informativo
     if (!isAuthenticated) {
@@ -4628,9 +4644,13 @@
     // Inicializar Firebase si está habilitado y no se acaba de hacer un borrado
     if (cloud.enabled && !justDeleted) {
       await initFirebaseIfEnabled();
+      // Renderizar formulario de multas después de cargar datos
+      renderFinePlayerForm();
     } else if (justDeleted) {
       // Mostrar mensaje de que la aplicación está lista con datos vacíos
       console.log('✅ Aplicación lista con datos vacíos después del borrado');
+      // Renderizar formulario de multas incluso con datos vacíos
+      renderFinePlayerForm();
     }
   }
 
