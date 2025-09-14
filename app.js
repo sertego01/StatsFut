@@ -3801,6 +3801,10 @@
         playerSpan.className = 'fine-player';
         playerSpan.textContent = playerName;
         
+        const details = document.createElement('div');
+        details.className = 'fine-details';
+        details.textContent = `Total ${currentYear}`;
+        
         info.appendChild(playerSpan);
         info.appendChild(details);
         
