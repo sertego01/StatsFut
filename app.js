@@ -3024,6 +3024,33 @@
     }
   }
 
+  // Función para determinar la clase de color según el resultado
+  function getResultClass(resultStr, location) {
+    if (!resultStr || resultStr === 'SR') return 'result-unknown';
+    
+    // Parsear el resultado (formato: "X-Y")
+    const parts = resultStr.split('-');
+    if (parts.length !== 2) return 'result-unknown';
+    
+    const ourGoals = parseInt(parts[0], 10);
+    const rivalGoals = parseInt(parts[1], 10);
+    
+    if (isNaN(ourGoals) || isNaN(rivalGoals)) return 'result-unknown';
+    
+    // Determinar resultado según la ubicación
+    if (location === 'local') {
+      // Como local: nuestro equipo es el primer número
+      if (ourGoals > rivalGoals) return 'result-win';
+      if (ourGoals === rivalGoals) return 'result-draw';
+      return 'result-loss';
+    } else {
+      // Como visitante: nuestro equipo es el primer número también
+      if (ourGoals > rivalGoals) return 'result-win';
+      if (ourGoals === rivalGoals) return 'result-draw';
+      return 'result-loss';
+    }
+  }
+
   // Función para añadir resultado de partido
   async function addMatchResult(result) {
     // Eliminar duplicados existentes para la misma jornada del mismo rival
@@ -3482,6 +3509,12 @@
       const resultDisplay = document.createElement('div');
       resultDisplay.className = 'calendar-result';
       resultDisplay.textContent = result.result || 'SR';
+      
+      // Añadir clase de color según el resultado
+      if (result.result && result.result !== 'SR') {
+        const resultClass = getResultClass(result.result, result.location);
+        resultDisplay.classList.add(resultClass);
+      }
       
       // Hacer el partido clickeable solo si hay sesión iniciada
       if (isAuthenticated) {
