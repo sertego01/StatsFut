@@ -3541,13 +3541,10 @@
 
   // Función de limpieza agresiva de duplicados
   function aggressiveCleanDuplicates() {
-    console.log('🧹 Iniciando limpieza agresiva de duplicados...');
     const beforeCount = matchResults.length;
     
-    // Agrupar por rival y jornada
+    // Verificar si hay duplicados antes de procesar
     const groupedResults = {};
-    const duplicateIds = [];
-    
     matchResults.forEach(result => {
       const key = `${result.rivalId}-${result.journey}`;
       if (!groupedResults[key]) {
@@ -3555,6 +3552,15 @@
       }
       groupedResults[key].push(result);
     });
+    
+    // Verificar si realmente hay duplicados
+    const hasDuplicates = Object.values(groupedResults).some(group => group.length > 1);
+    if (!hasDuplicates) {
+      return; // No hay duplicados, salir sin hacer nada
+    }
+    
+    console.log('🧹 Iniciando limpieza agresiva de duplicados...');
+    const duplicateIds = [];
     
     // Para cada grupo, mantener solo el más reciente
     const cleanedResults = [];
@@ -3582,12 +3588,10 @@
       console.log(`🗑️ Eliminando ${duplicateIds.length} duplicados:`, duplicateIds);
       matchResults = cleanedResults;
       saveState();
-      renderCalendar();
-      renderRivalsList();
       console.log(`✅ Limpieza completada: ${beforeCount} → ${matchResults.length} resultados`);
-    } else {
-      console.log('✅ No se encontraron duplicados');
+      return true; // Indica que hubo cambios
     }
+    return false; // No hubo cambios
   }
 
   // Función para eliminar jugador
@@ -3766,6 +3770,12 @@
     const calendarEmpty = document.getElementById('calendar-empty');
     
     if (!calendarList || !calendarEmpty) return;
+    
+    // Limpiar duplicados antes de renderizar
+    const hadDuplicates = aggressiveCleanDuplicates();
+    if (hadDuplicates) {
+      console.log('🔄 Duplicados eliminados, continuando con renderizado...');
+    }
     
     if (matchResults.length === 0) {
       calendarEmpty.style.display = '';
@@ -4832,6 +4842,14 @@
     
     // Hacer las funciones disponibles globalmente para uso manual
     window.cleanDuplicates = aggressiveCleanDuplicates;
+    window.debugRivals = () => {
+      console.log('📊 Debug de rivales:');
+      rivals.forEach(rival => {
+        const count = matchResults.filter(r => r.rivalId === rival.id).length;
+        console.log(`- ${rival.name}: ${count} partidos`);
+      });
+      console.log(`Total: ${matchResults.length} partidos`);
+    };
     window.cleanRivalDuplicates = (rivalName) => {
       const rival = rivals.find(r => r.name === rivalName);
       if (!rival) {
@@ -4876,10 +4894,14 @@
       matchResults.push(...cleanedResults);
       
       saveState();
-      renderCalendar();
-      renderRivalsList();
       
       console.log(`✅ ${rivalName} limpiado: ${beforeCount} → ${matchResults.length} resultados`);
+      
+      // Refrescar UI solo una vez al final
+      setTimeout(() => {
+        renderCalendar();
+        renderRivalsList();
+      }, 100);
     };
   }
 
