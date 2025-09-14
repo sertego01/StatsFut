@@ -2999,7 +2999,25 @@
 
   // Función para cargar jornadas existentes
   function loadExistingJourneys(rival) {
+    // Limpiar duplicados antes de cargar
+    aggressiveCleanDuplicates();
+    
     const existingResults = matchResults.filter(r => r.rivalId === rival.id);
+    
+    // Agrupar por jornada para evitar duplicados
+    const uniqueJourneys = {};
+    existingResults.forEach(result => {
+      if (!uniqueJourneys[result.journey]) {
+        uniqueJourneys[result.journey] = result;
+      } else {
+        // Si hay duplicados, mantener el más reciente
+        if ((result.createdAt || 0) > (uniqueJourneys[result.journey].createdAt || 0)) {
+          uniqueJourneys[result.journey] = result;
+        }
+      }
+    });
+    
+    const uniqueResults = Object.values(uniqueJourneys);
     
     // Limpiar todos los bloques de jornada existentes (excepto el primero)
     const journeyBlocks = document.querySelectorAll('.journey-block');
@@ -3007,15 +3025,15 @@
       journeyBlocks[i].remove();
     }
     
-    if (existingResults.length === 0) return;
+    if (uniqueResults.length === 0) return;
     
     // Crear bloques adicionales si hay más de 1 jornada (ya tenemos 1 por defecto)
-    while (existingResults.length > document.querySelectorAll('.journey-block').length) {
+    while (uniqueResults.length > document.querySelectorAll('.journey-block').length) {
       addNewJourneyBlock();
     }
     
     // Cargar datos en todos los bloques existentes
-    existingResults.forEach((result, index) => {
+    uniqueResults.forEach((result, index) => {
       const journeyNum = index + 1;
       
       // Cargar jornada
@@ -3690,6 +3708,11 @@
 
   // Función para abrir modal de resultado
   function openRivalResultModal(rival) {
+    console.log(`🔍 Abriendo modal para rival: ${rival.name}`);
+    
+    // Limpiar duplicados inmediatamente antes de abrir el modal
+    console.log('🧹 Limpiando duplicados antes de abrir modal...');
+    aggressiveCleanDuplicates();
     
     const modal = document.getElementById('rival-result-modal');
     const shieldDisplay = document.getElementById('rival-shield-display');
@@ -4322,21 +4345,25 @@
     
     console.log(`🔧 Configurando botón de eliminar para partido ${partidoNumber}:`, deleteBtn);
     
-    // Verificar si ya tiene event listener para evitar duplicados
-    if (deleteBtn.dataset.deleteConfigured) {
-      console.log(`⚠️ Botón de partido ${partidoNumber} ya configurado, saltando...`);
-      return;
+    // Limpiar event listeners anteriores
+    const newDeleteBtn = deleteBtn.cloneNode(true);
+    newDeleteBtn.disabled = false;
+    newDeleteBtn.style.pointerEvents = 'auto';
+    newDeleteBtn.style.opacity = '1';
+    
+    if (deleteBtn.parentNode) {
+      deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
     }
     
-    // Añadir el event listener
-    deleteBtn.addEventListener('click', (e) => {
+    // Añadir el event listener al nuevo botón
+    newDeleteBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      console.log(`🗑️ Eliminando partido ${partidoNumber}`);
       deletePartido(partidoNumber);
     });
     
-    // Marcar como configurado para evitar duplicados
-    deleteBtn.dataset.deleteConfigured = 'true';
+    console.log(`✅ Botón de partido ${partidoNumber} configurado correctamente`);
   }
 
   // Función para eliminar un partido específico
@@ -4452,6 +4479,14 @@
       // Reconfigurar event listeners de Local/Visitante
       setupNewBlockEventListeners(block, newNumber);
     });
+    
+    // Asegurar que todos los botones estén configurados correctamente
+    setTimeout(() => {
+      journeyBlocks.forEach((block, index) => {
+        const newNumber = index + 1;
+        setupDeletePartidoButton(newNumber);
+      });
+    }, 100);
     
     // Reconfigurar la lógica automática de Local/Visitante
     setupLocationLogic();
