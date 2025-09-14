@@ -4127,6 +4127,11 @@
     deleteButtons.forEach(btn => {
       // Limpiar flags de configuración
       delete btn.dataset.deleteConfigured;
+      
+      // Asegurar que el botón esté habilitado
+      btn.disabled = false;
+      btn.style.pointerEvents = 'auto';
+      btn.style.opacity = '1';
     });
     
     // Limpiar flags de validación de jornadas
@@ -4253,8 +4258,16 @@
       return;
     }
     
+    // Asegurar que el botón esté habilitado
+    deleteBtn.disabled = false;
+    deleteBtn.style.pointerEvents = 'auto';
+    deleteBtn.style.opacity = '1';
+    
+    console.log(`🔧 Configurando botón de eliminar para partido ${partidoNumber}:`, deleteBtn);
+    
     // Verificar si ya tiene event listener para evitar duplicados
     if (deleteBtn.dataset.deleteConfigured) {
+      console.log(`⚠️ Botón de partido ${partidoNumber} ya configurado, saltando...`);
       return;
     }
     
@@ -4309,6 +4322,13 @@
       
       // Reconfigurar la lógica de Local/Visitante
       setupLocationLogic();
+      
+      // Asegurar que todos los botones de eliminar estén correctamente configurados
+      const remainingBlocks = document.querySelectorAll('.journey-block');
+      remainingBlocks.forEach((block, index) => {
+        const journeyNum = index + 1;
+        setupDeletePartidoButton(journeyNum);
+      });
     }
   }
 
@@ -4358,6 +4378,12 @@
       if (deleteBtn) {
         // Limpiar event listeners anteriores
         const newDeleteBtn = deleteBtn.cloneNode(true);
+        
+        // Asegurar que el botón esté habilitado
+        newDeleteBtn.disabled = false;
+        newDeleteBtn.style.pointerEvents = 'auto';
+        newDeleteBtn.style.opacity = '1';
+        
         if (deleteBtn.parentNode) {
           deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
         }
