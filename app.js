@@ -247,7 +247,7 @@
 
   function computeMatchStats() {
     const totalsByPlayer = new Map();
-    players.forEach(p => totalsByPlayer.set(p.id, { goals: 0, assists: 0, yellows: 0, reds: 0, minutes: 0, convocations: 0 }));
+    players.forEach(p => totalsByPlayer.set(p.id, { goals: 0, yellows: 0, reds: 0, minutes: 0, convocations: 0 }));
     
     // Contar convocatorias
     convocations.forEach(conv => {
@@ -263,26 +263,23 @@
       const agg = totalsByPlayer.get(ent.playerId);
       if (!agg) return;
       const goals = Number(ent.goals) || 0;
-      const assists = Number(ent.assists) || 0;
       const yellows = Number(ent.yellows) || 0;
       const reds = Number(ent.reds) || 0;
       const minutes = Number(ent.minutes) || 0;
       agg.goals += goals;
-      agg.assists += assists;
       agg.yellows += yellows;
       agg.reds += reds;
       agg.minutes += minutes;
     });
     
     const rows = players.map(p => {
-      const t = totalsByPlayer.get(p.id) || { goals: 0, assists: 0, yellows: 0, reds: 0, minutes: 0, convocations: 0 };
+      const t = totalsByPlayer.get(p.id) || { goals: 0, yellows: 0, reds: 0, minutes: 0, convocations: 0 };
       const denom = t.convocations > 0 ? t.convocations * (config.matchMinutes || 80) : 0;
       const percent = denom > 0 ? Math.round(Math.min(100, (t.minutes / denom) * 100)) : 0;
       return { player: p, percent, ...t };
     });
     rows.sort((a, b) => {
       if (b.goals !== a.goals) return b.goals - a.goals;
-      if (b.assists !== a.assists) return b.assists - a.assists;
       if (b.minutes !== a.minutes) return b.minutes - a.minutes;
       return a.player.name.localeCompare(b.player.name, 'es', { sensitivity: 'base' });
     });
@@ -599,7 +596,6 @@
               m.playerId === matchData.playerId && 
               m.date === matchData.date &&
               m.goals === matchData.goals &&
-              m.assists === matchData.assists &&
               m.minutes === matchData.minutes
             );
             
@@ -1187,7 +1183,6 @@
   const inputMatchDate = $('#match-date');
   const selectMatchPlayer = $('#match-player');
   const inputMatchGoals = $('#match-goals');
-  const inputMatchAssists = $('#match-assists');
   const inputMatchYellows = $('#match-yellows');
   const inputMatchReds = $('#match-reds');
   const inputMatchMinutes = $('#match-minutes');
@@ -1779,7 +1774,7 @@
        // Estadísticas del partido
        const meta = document.createElement('div');
        meta.className = 'match-stats';
-       meta.textContent = `G:${ent.goals} A:${ent.assists} 🟨:${ent.yellows} 🟥:${ent.reds} Min:${ent.minutes}`;
+       meta.textContent = `G:${ent.goals} 🟨:${ent.yellows} 🟥:${ent.reds} Min:${ent.minutes}`;
        
        nameDateRow.appendChild(title);
        nameDateRow.appendChild(date);
@@ -1902,7 +1897,7 @@
     mstatsTbody.innerHTML = '';
     const hasMatches = (matches.length > 0 || convocations.length > 0) && rows.some(r => {
       // oculta jugadores eliminados (nunca estarán en rows) y muestra si hay datos
-      return r.convocations > 0 || r.goals > 0 || r.assists > 0 || r.minutes > 0 || r.yellows > 0 || r.reds > 0;
+      return r.convocations > 0 || r.goals > 0 || r.minutes > 0 || r.yellows > 0 || r.reds > 0;
     });
     mstatsEmpty.classList.toggle('is-hidden', hasMatches);
     mstatsTable.style.display = hasMatches ? 'table' : 'none';
@@ -1918,7 +1913,6 @@
       tdName.appendChild(nameSpan);
       
       const tdGoals = document.createElement('td'); tdGoals.textContent = String(r.goals);
-      const tdAst = document.createElement('td'); tdAst.textContent = String(r.assists);
       const tdY = document.createElement('td'); tdY.textContent = String(r.yellows);
       const tdR = document.createElement('td'); tdR.textContent = String(r.reds);
       const tdMin = document.createElement('td'); tdMin.textContent = String(r.minutes);
@@ -1927,7 +1921,6 @@
       
       tr.appendChild(tdName);
       tr.appendChild(tdGoals);
-      tr.appendChild(tdAst);
       tr.appendChild(tdY);
       tr.appendChild(tdR);
       tr.appendChild(tdMin);
@@ -2407,7 +2400,6 @@
         
         // Actualizar entrada existente
         existingEntry.goals = Math.max(0, parseInt(inputMatchGoals.value, 10) || 0);
-        existingEntry.assists = Math.max(0, parseInt(inputMatchAssists.value, 10) || 0);
         existingEntry.yellows = Math.max(0, parseInt(inputMatchYellows.value, 10) || 0);
         existingEntry.reds = Math.max(0, parseInt(inputMatchReds.value, 10) || 0);
         existingEntry.minutes = Math.max(0, parseInt(inputMatchMinutes.value, 10) || 0);
@@ -2429,12 +2421,11 @@
         renderMatchStats();
         renderRecentMatchEntries();
         
-        // Limpiar formulario
-        inputMatchGoals.value = '0';
-        inputMatchAssists.value = '0';
-        inputMatchYellows.value = '0';
-        inputMatchReds.value = '0';
-        inputMatchMinutes.value = '0';
+      // Limpiar formulario
+      inputMatchGoals.value = '0';
+      inputMatchYellows.value = '0';
+      inputMatchReds.value = '0';
+      inputMatchMinutes.value = '0';
         return;
       }
       
@@ -2444,7 +2435,6 @@
         createdAt: Date.now(),
         playerId,
         goals: Math.max(0, parseInt(inputMatchGoals.value, 10) || 0),
-        assists: Math.max(0, parseInt(inputMatchAssists.value, 10) || 0),
         yellows: Math.max(0, parseInt(inputMatchYellows.value, 10) || 0),
         reds: Math.max(0, parseInt(inputMatchReds.value, 10) || 0),
         minutes: Math.max(0, parseInt(inputMatchMinutes.value, 10) || 0)
@@ -2462,7 +2452,6 @@
       
       // Limpiar a 0 manteniendo la fecha y el jugador seleccionado
       inputMatchGoals.value = '0';
-      inputMatchAssists.value = '0';
       inputMatchYellows.value = '0';
       inputMatchReds.value = '0';
       inputMatchMinutes.value = '0';
@@ -3166,7 +3155,7 @@
     const seenMatches = new Set();
     
     matches.forEach(match => {
-      const key = `${match.playerId}-${match.date}-${match.goals}-${match.assists}-${match.minutes}`;
+      const key = `${match.playerId}-${match.date}-${match.goals}-${match.minutes}`;
       if (!seenMatches.has(key)) {
         seenMatches.add(key);
         uniqueMatches.push(match);
@@ -3983,8 +3972,6 @@
     
     // Actualizar valores en el modal
     document.getElementById('goals-per-minute').textContent = stats.minutesPerGoal;
-    document.getElementById('assists-per-minute').textContent = stats.minutesPerAssist;
-    document.getElementById('goals-assists-per-minute').textContent = stats.minutesPerGoalAssist;
     document.getElementById('offensive-efficiency').textContent = stats.offensiveEfficiency;
     
     document.getElementById('convocation-percentage').textContent = stats.convocationPercentage;
@@ -3997,8 +3984,6 @@
     document.getElementById('cards-per-minute').textContent = stats.minutesPerCard;
     
     document.getElementById('total-goals').textContent = stats.totalGoals;
-    document.getElementById('total-assists').textContent = stats.totalAssists;
-    document.getElementById('total-goals-assists').textContent = stats.totalGoalsAssists;
     
     // Mostrar modal
     modal.hidden = false;
@@ -4009,7 +3994,6 @@
     const player = playerStats.player;
     const totalMinutes = playerStats.minutes || 0;
     const totalGoals = playerStats.goals || 0;
-    const totalAssists = playerStats.assists || 0;
     const totalYellows = playerStats.yellows || 0;
     const totalReds = playerStats.reds || 0;
     const playerConvocations = playerStats.convocations || 0;
@@ -4017,13 +4001,11 @@
     // Calcular total de convocatorias posibles (todas las convocatorias registradas en el sistema)
     const totalPossibleConvocations = convocations.length;
     
-    // Estadísticas de minutos por acción (cuántos minutos necesita para marcar/ayudar/recibir tarjeta)
+    // Estadísticas de minutos por acción (cuántos minutos necesita para marcar/recibir tarjeta)
     const minutesPerGoal = totalGoals > 0 ? (totalMinutes / totalGoals).toFixed(1) : 'N/A';
-    const minutesPerAssist = totalAssists > 0 ? (totalMinutes / totalAssists).toFixed(1) : 'N/A';
-    const minutesPerGoalAssist = (totalGoals + totalAssists) > 0 ? (totalMinutes / (totalGoals + totalAssists)).toFixed(1) : 'N/A';
     
-    // Eficiencia ofensiva (G+A por cada 80 minutos)
-    const offensiveEfficiency = totalMinutes > 0 ? ((totalGoals + totalAssists) / totalMinutes * 80).toFixed(2) : '0.00';
+    // Eficiencia ofensiva (G por cada 80 minutos)
+    const offensiveEfficiency = totalMinutes > 0 ? (totalGoals / totalMinutes * 80).toFixed(2) : '0.00';
     
     // Porcentaje de convocatorias (partidos convocado / total convocatorias * 100)
     const convocationPercentage = totalPossibleConvocations > 0 ? 
@@ -4038,14 +4020,10 @@
     // Minutos por tarjeta (cuántos minutos puede jugar sin recibir tarjeta)
     const minutesPerCard = (totalYellows + totalReds) > 0 ? (totalMinutes / (totalYellows + totalReds)).toFixed(1) : 'N/A';
     
-    // Total G+A
-    const totalGoalsAssists = totalGoals + totalAssists;
     
     return {
       minutesPerGoal: minutesPerGoal,
-      minutesPerAssist: minutesPerAssist,
-      minutesPerGoalAssist: minutesPerGoalAssist,
-      offensiveEfficiency: `${offensiveEfficiency} G+A/80min`,
+      offensiveEfficiency: `${offensiveEfficiency} G/80min`,
       convocationPercentage: `${convocationPercentage}%`,
       matchesPlayed: matchesPlayed,
       totalMinutes: `${totalMinutes} min`,
@@ -4053,9 +4031,7 @@
       totalYellows: totalYellows,
       totalReds: totalReds,
       minutesPerCard: minutesPerCard,
-      totalGoals: totalGoals,
-      totalAssists: totalAssists,
-      totalGoalsAssists: totalGoalsAssists
+      totalGoals: totalGoals
     };
   }
 
