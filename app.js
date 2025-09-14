@@ -683,7 +683,10 @@
         return;
       }
       
+      console.log('🔄 Sincronización de resultados en tiempo real...');
       const changes = snapshot.docChanges();
+      let hasChanges = false;
+      
       changes.forEach((change) => {
         if (change.type === 'added' || change.type === 'modified') {
           const resultData = change.doc.data();
@@ -692,10 +695,12 @@
           if (existingIndex >= 0) {
             // Solo actualizar si hay cambios reales
             const existing = matchResults[existingIndex];
-            const hasChanges = JSON.stringify(existing) !== JSON.stringify(resultData);
+            const hasRealChanges = JSON.stringify(existing) !== JSON.stringify(resultData);
             
-            if (hasChanges) {
+            if (hasRealChanges) {
+              console.log('🔄 Actualizando resultado existente:', resultData);
               matchResults[existingIndex] = { ...existing, ...resultData };
+              hasChanges = true;
             }
           } else {
             // Verificar que no sea un duplicado por rival y jornada
@@ -705,19 +710,31 @@
             );
             
             if (!isDuplicate) {
+              console.log('✅ Añadiendo nuevo resultado desde Firebase:', resultData);
               matchResults.push(resultData);
+              hasChanges = true;
+            } else {
+              console.log('⚠️ Duplicado detectado en sincronización, ignorando:', resultData);
             }
           }
         } else if (change.type === 'removed') {
           const resultId = change.doc.id;
+          const beforeLength = matchResults.length;
           matchResults = matchResults.filter(r => r.id !== resultId);
+          if (matchResults.length !== beforeLength) {
+            console.log('🗑️ Resultado eliminado desde Firebase:', resultId);
+            hasChanges = true;
+          }
         }
       });
       
-      // Guardar y refrescar UI
-      saveState();
-      renderCalendar();
-      renderRivalsList(); // Para actualizar las jornadas mostradas en cada rival
+      // Solo guardar y refrescar si hubo cambios reales
+      if (hasChanges) {
+        console.log('💾 Guardando cambios y refrescando UI...');
+        saveState();
+        renderCalendar();
+        renderRivalsList(); // Para actualizar las jornadas mostradas en cada rival
+      }
     });
 
     // Sincronizar convocatorias
@@ -3236,11 +3253,23 @@
 
   // Función para añadir resultado de partido
   async function addMatchResult(result) {
-    // Eliminar duplicados existentes para la misma jornada del mismo rival
-    matchResults = matchResults.filter(r => !(r.rivalId === result.rivalId && r.journey === result.journey));
+    console.log('🔄 Añadiendo resultado:', result);
     
-    // Añadir el nuevo resultado
-    matchResults.push(result);
+    // Verificar si ya existe un resultado para esta jornada y rival
+    const existingIndex = matchResults.findIndex(r => 
+      r.rivalId === result.rivalId && r.journey === result.journey
+    );
+    
+    if (existingIndex >= 0) {
+      console.log('⚠️ Duplicado encontrado, reemplazando:', matchResults[existingIndex]);
+      // Reemplazar el resultado existente
+      matchResults[existingIndex] = result;
+    } else {
+      console.log('✅ Añadiendo nuevo resultado');
+      // Añadir el nuevo resultado
+      matchResults.push(result);
+    }
+    
     // IMPORTANTE: No ordenar por fecha para mantener el orden de jornadas preestablecido
     // Las jornadas se mantienen en el orden que el usuario marca en el formulario
     saveState();
@@ -3248,9 +3277,11 @@
     // Sincronizar con Firebase si está disponible
     if (cloud.enabled && cloud.db && isAuthenticated) {
       try {
+        console.log('☁️ Sincronizando con Firebase...');
         await cloud.db.collection('matchResults').doc(result.id).set(result);
+        console.log('✅ Sincronización completada');
       } catch (error) {
-        console.error('Error sincronizando resultado con Firebase:', error);
+        console.error('❌ Error sincronizando resultado con Firebase:', error);
       }
     }
   }
@@ -3444,22 +3475,44 @@
     // Limpiar duplicados de resultados
     const uniqueResults = [];
     const seenResults = new Set();
+    const duplicateIds = [];
     
     matchResults.forEach(result => {
       const key = `${result.rivalId}-${result.journey}`;
       if (!seenResults.has(key)) {
         seenResults.add(key);
         uniqueResults.push(result);
+      } else {
+        // Guardar IDs de duplicados para logging
+        duplicateIds.push(result.id);
+        console.log(`⚠️ Duplicado detectado: ${result.rivalId}-${result.journey} (ID: ${result.id})`);
       }
     });
     
     if (uniqueResults.length !== matchResults.length) {
+      console.log(`🧹 Limpiando duplicados de resultados: ${matchResults.length} → ${uniqueResults.length}`);
+      console.log(`🗑️ IDs de duplicados eliminados:`, duplicateIds);
       matchResults = uniqueResults;
-      console.log(`Duplicados de resultados limpiados: ${matchResults.length} → ${uniqueResults.length}`);
     }
     
     // Guardar estado limpio
     saveState();
+  }
+
+  // Función para limpiar duplicados periódicamente
+  function startDuplicateCleanup() {
+    // Limpiar duplicados cada 30 segundos
+    setInterval(() => {
+      if (matchResults.length > 0) {
+        const beforeCount = matchResults.length;
+        cleanDuplicates();
+        if (matchResults.length !== beforeCount) {
+          console.log('🔄 Limpieza periódica de duplicados completada');
+          renderCalendar();
+          renderRivalsList();
+        }
+      }
+    }, 30000); // 30 segundos
   }
 
   // Función para eliminar jugador
@@ -4652,6 +4705,9 @@
       // Renderizar formulario de multas incluso con datos vacíos
       renderFinePlayerForm();
     }
+    
+    // Iniciar limpieza periódica de duplicados
+    startDuplicateCleanup();
   }
 
 
