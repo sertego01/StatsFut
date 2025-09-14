@@ -3032,22 +3032,22 @@
     const parts = resultStr.split('-');
     if (parts.length !== 2) return 'result-unknown';
     
-    const ourGoals = parseInt(parts[0], 10);
-    const rivalGoals = parseInt(parts[1], 10);
+    const firstGoals = parseInt(parts[0], 10);
+    const secondGoals = parseInt(parts[1], 10);
     
-    if (isNaN(ourGoals) || isNaN(rivalGoals)) return 'result-unknown';
+    if (isNaN(firstGoals) || isNaN(secondGoals)) return 'result-unknown';
     
     // Determinar resultado según la ubicación
     if (location === 'local') {
       // Como local: nuestro equipo es el primer número (X), rival el segundo (Y)
-      if (ourGoals > rivalGoals) return 'result-win';
-      if (ourGoals === rivalGoals) return 'result-draw';
+      if (firstGoals > secondGoals) return 'result-win';
+      if (firstGoals === secondGoals) return 'result-draw';
       return 'result-loss';
     } else {
-      // Como visitante: nuestro equipo es el segundo número (Y), rival el primero (X)
-      if (rivalGoals > ourGoals) return 'result-loss';
-      if (ourGoals === rivalGoals) return 'result-draw';
-      return 'result-win';
+      // Como visitante: rival es el primer número (X), nuestro equipo el segundo (Y)
+      if (secondGoals > firstGoals) return 'result-win';
+      if (firstGoals === secondGoals) return 'result-draw';
+      return 'result-loss';
     }
   }
 
