@@ -27,6 +27,10 @@
           <button class="tab-btn" data-target="tab-rivales">Rivales</button>
           <button class="tab-btn" data-target="tab-calendario">Calendario</button>
         </div>
+        <div class="tabs-row cols-2">
+          <button class="tab-btn" data-target="tab-add-fines">Añadir multas</button>
+          <button class="tab-btn" data-target="tab-fines">Multas</button>
+        </div>
       </nav>
     </header>
 
@@ -246,6 +250,55 @@
           <h2>Calendario de partidos</h2>
           <div id="calendar-empty" class="empty-state">No hay partidos programados.</div>
           <div id="calendar-list"></div>
+        </div>
+      </section>
+
+      <section id="tab-add-fines" class="tab-section">
+        <div class="card">
+          <h2>Añadir multa</h2>
+          <form id="form-add-fine" class="form-grid">
+            <label>
+              <span>Jugador</span>
+              <select id="fine-player" required></select>
+            </label>
+            <label>
+              <span>Motivo</span>
+              <input id="fine-reason" type="text" placeholder="Ej: Falta de asistencia" required />
+            </label>
+            <label>
+              <span>Fecha</span>
+              <input id="fine-date" type="date" required />
+            </label>
+            <label>
+              <span>Importe (€)</span>
+              <input id="fine-amount" type="number" min="0" step="0.01" placeholder="0.00" required />
+            </label>
+            <label>
+              <span>Estado</span>
+              <select id="fine-paid" required>
+                <option value="false">Pendiente</option>
+                <option value="true">Pagado</option>
+              </select>
+            </label>
+            <button type="submit" class="btn primary">Añadir multa</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="tab-fines" class="tab-section">
+        <div class="card">
+          <h2>Multas pendientes</h2>
+          <div id="fines-pending-empty" class="empty-state">No hay multas pendientes.</div>
+          <ul id="fines-pending-list" class="list"></ul>
+        </div>
+
+        <div class="card">
+          <h2>Resumen anual</h2>
+          <div id="fines-summary-empty" class="empty-state">No hay multas registradas este año.</div>
+          <div id="fines-total" class="fines-total" style="display: none;">
+            <h3>Total anual: <span id="fines-total-amount">0€</span></h3>
+          </div>
+          <ul id="fines-summary-list" class="list"></ul>
         </div>
       </section>
     </main>

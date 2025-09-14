@@ -9,6 +9,7 @@
     convocations: 'asistencia_convocations',
     rivals: 'asistencia_rivals',
     matchResults: 'asistencia_matchResults',
+    fines: 'asistencia_fines',
     lastSelectedDate: 'asistencia_last_date'
   };
 
@@ -17,6 +18,7 @@
   let sessions = [];
   let matches = [];
   let convocations = [];
+  let fines = [];
 
   // ---- Utilidades ----
   function generateId(prefix) {
@@ -30,6 +32,7 @@
     localStorage.setItem(STORAGE_KEYS.convocations, JSON.stringify(convocations));
     localStorage.setItem(STORAGE_KEYS.rivals, JSON.stringify(rivals));
     localStorage.setItem(STORAGE_KEYS.matchResults, JSON.stringify(matchResults));
+    localStorage.setItem(STORAGE_KEYS.fines, JSON.stringify(fines));
   }
 
   function loadState() {
@@ -40,12 +43,14 @@
       const c = JSON.parse(localStorage.getItem(STORAGE_KEYS.convocations) || '[]');
       const r = JSON.parse(localStorage.getItem(STORAGE_KEYS.rivals) || '[]');
       const mr = JSON.parse(localStorage.getItem(STORAGE_KEYS.matchResults) || '[]');
+      const f = JSON.parse(localStorage.getItem(STORAGE_KEYS.fines) || '[]');
       if (Array.isArray(p)) players = p; else players = [];
       if (Array.isArray(s)) sessions = s; else sessions = [];
       if (Array.isArray(m)) matches = m; else matches = [];
       if (Array.isArray(c)) convocations = c; else convocations = [];
       if (Array.isArray(r)) rivals = r; else rivals = [];
       if (Array.isArray(mr)) matchResults = mr; else matchResults = [];
+      if (Array.isArray(f)) fines = f; else fines = [];
     } catch (e) {
       players = [];
       sessions = [];
@@ -53,6 +58,7 @@
       convocations = [];
       rivals = [];
       matchResults = [];
+      fines = [];
     }
     // Normaliza: ordena jugadores por nombre
     players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
@@ -762,6 +768,49 @@
       renderStats(); // Para actualizar estadísticas de convocatorias
     });
 
+    // Sincronizar multas
+    cloud.db.collection('fines').onSnapshot((snapshot) => {
+      if (!isAuthenticated) return;
+      if (isApplyingCloudSnapshot) return;
+      
+      // En la sincronización inicial, solo cargar datos si no hay datos locales
+      if (!initialSyncCompleted && fines.length > 0) {
+        return;
+      }
+      
+      const changes = snapshot.docChanges();
+      changes.forEach((change) => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const fineData = change.doc.data();
+          const existingIndex = fines.findIndex(f => f.id === fineData.id);
+          
+          if (existingIndex >= 0) {
+            // Solo actualizar si hay cambios reales
+            const existing = fines[existingIndex];
+            const hasChanges = JSON.stringify(existing) !== JSON.stringify(fineData);
+            
+            if (hasChanges) {
+              fines[existingIndex] = { ...existing, ...fineData };
+            }
+          } else {
+            // Añadir nueva multa
+            fines.push(fineData);
+          }
+        } else if (change.type === 'removed') {
+          const fineId = change.doc.id;
+          fines = fines.filter(f => f.id !== fineId);
+        }
+      });
+      
+      // Ordenar por fecha descendente y guardar
+      fines.sort((a, b) => new Date(b.date) - new Date(a.date));
+      saveState();
+      
+      // Refrescar UI
+      renderFines();
+      renderFinePlayerForm();
+    });
+
   }
 
   // Cargar datos desde Firebase
@@ -828,6 +877,14 @@
       // La deduplicación se maneja en addMatchResult() cuando se añaden nuevos resultados
       // matchResults ya contiene todos los datos de Firebase
       
+      // Cargar multas
+      const finesSnapshot = await cloud.db.collection('fines').get();
+      fines.length = 0; // Limpiar array existente
+      finesSnapshot.forEach(doc => {
+        fines.push(doc.data());
+      });
+      fines.sort((a, b) => new Date(b.date) - new Date(a.date)); // Más recientes primero
+      
       // Guardar en localStorage
       saveState();
       
@@ -841,6 +898,8 @@
       renderRecentConvocations();
       renderRivalsList();
       renderCalendar();
+      renderFinePlayerForm();
+      renderFines();
       
       console.log('✅ Datos cargados desde Firebase correctamente');
       
@@ -960,9 +1019,9 @@
 
   // ---- Auth: control de visibilidad/edición ----
   function applyAuthRestrictions() {
-    // Tabs restringidas (calendario ahora es público)
-    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales'];
-    const publicTargets = ['tab-estadisticas','tab-estadisticas-partidos','tab-calendario'];
+    // Tabs restringidas (calendario y multas ahora son públicos)
+    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales','tab-add-fines'];
+    const publicTargets = ['tab-estadisticas','tab-estadisticas-partidos','tab-calendario','tab-fines'];
     const allTabButtons = Array.from(document.querySelectorAll('.tab-btn'));
     allTabButtons.forEach(btn => {
       const target = btn.getAttribute('data-target');
@@ -1199,6 +1258,20 @@
 
   let mstatsSort = { key: 'goals', dir: 'desc' };
 
+  // Multas
+  const formAddFine = $('#form-add-fine');
+  const selectFinePlayer = $('#fine-player');
+  const inputFineReason = $('#fine-reason');
+  const inputFineDate = $('#fine-date');
+  const inputFineAmount = $('#fine-amount');
+  const selectFinePaid = $('#fine-paid');
+  const finesPendingList = $('#fines-pending-list');
+  const finesPendingEmpty = $('#fines-pending-empty');
+  const finesSummaryList = $('#fines-summary-list');
+  const finesSummaryEmpty = $('#fines-summary-empty');
+  const finesTotal = $('#fines-total');
+  const finesTotalAmount = $('#fines-total-amount');
+
   // ---- Navegación de pestañas ----
   async function onTabClick(e) {
     const btn = e.target.closest('button[data-target]');
@@ -1231,6 +1304,10 @@
       renderRivalsList();
     } else if (targetId === 'tab-calendario') {
       renderCalendar();
+    } else if (targetId === 'tab-add-fines') {
+      renderFinePlayerForm();
+    } else if (targetId === 'tab-fines') {
+      renderFines();
     }
     // Inicia sync en segundo plano si se ha activado
     if (cloud.enabled && cloud.db) startCloudSync();
@@ -1300,6 +1377,7 @@
             renderMatchPlayerForm();
             renderMatchStats();
             renderRecentMatchEntries();
+            renderFinePlayerForm();
           }
         });
 
@@ -1347,6 +1425,7 @@
     renderMatchPlayerForm();
     renderMatchStats();
     renderRecentMatchEntries();
+    renderFinePlayerForm();
   });
 
   // ---- Render Entrenamientos / Asistencia ----
@@ -2531,6 +2610,48 @@
     });
   }
 
+  // Event listener para formulario de multas
+  if (formAddFine) {
+    formAddFine.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      // Solo permitir añadir multas si hay sesión iniciada
+      if (!isAuthenticated) {
+        alert('Debes iniciar sesión para añadir multas.');
+        return;
+      }
+      
+      const playerId = selectFinePlayer ? selectFinePlayer.value : '';
+      const reason = inputFineReason ? inputFineReason.value.trim() : '';
+      const date = inputFineDate ? inputFineDate.value : '';
+      const amount = inputFineAmount ? parseFloat(inputFineAmount.value) : 0;
+      const paid = selectFinePaid ? selectFinePaid.value === 'true' : false;
+      
+      if (!playerId || !reason || !date || amount <= 0) {
+        alert('Por favor, completa todos los campos correctamente.');
+        return;
+      }
+      
+      const fine = {
+        id: generateId('fine'),
+        playerId,
+        reason,
+        date,
+        amount,
+        paid,
+        createdAt: Date.now()
+      };
+      
+      await addFine(fine);
+      
+      // Refrescar UI
+      renderFines();
+      
+      // Limpiar formulario
+      formAddFine.reset();
+    });
+  }
+
   // Event listener para fecha del partido
   if (inputMatchDate) {
     inputMatchDate.addEventListener('change', () => {
@@ -3088,6 +3209,56 @@
     }
   }
 
+  // ---- Funciones para multas ----
+  async function addFine(fine) {
+    // Añadir a la lista local
+    fines.push(fine);
+    fines.sort((a, b) => new Date(b.date) - new Date(a.date)); // Más recientes primero
+    saveState();
+    
+    // Sincronizar con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('fines').doc(fine.id).set(fine);
+      } catch (error) {
+        console.error('Error sincronizando multa con Firebase:', error);
+      }
+    }
+  }
+
+  async function updateFine(fineId, updates) {
+    const fineIndex = fines.findIndex(f => f.id === fineId);
+    if (fineIndex === -1) return;
+    
+    // Actualizar localmente
+    fines[fineIndex] = { ...fines[fineIndex], ...updates, updatedAt: Date.now() };
+    saveState();
+    
+    // Sincronizar con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('fines').doc(fineId).set(fines[fineIndex]);
+      } catch (error) {
+        console.error('Error sincronizando multa actualizada con Firebase:', error);
+      }
+    }
+  }
+
+  async function deleteFine(fineId) {
+    // Eliminar de la lista local
+    fines = fines.filter(f => f.id !== fineId);
+    saveState();
+    
+    // Sincronización eliminación con Firebase si está disponible
+    if (cloud.enabled && cloud.db && isAuthenticated) {
+      try {
+        await cloud.db.collection('fines').doc(fineId).delete();
+      } catch (error) {
+        console.error('Error eliminando multa de Firebase:', error);
+      }
+    }
+  }
+
   // Función para eliminar rival y todos sus partidos asociados
   async function deleteRivalAndMatches(rivalId) {
     try {
@@ -3534,6 +3705,150 @@
       item.appendChild(resultDisplay);
       
       calendarList.appendChild(item);
+    });
+  }
+
+  // ---- Funciones de renderizado para multas ----
+  function renderFinesPending() {
+    if (!finesPendingList || !finesPendingEmpty) return;
+    
+    const pendingFines = fines.filter(f => !f.paid);
+    
+    finesPendingEmpty.style.display = pendingFines.length === 0 ? '' : 'none';
+    finesPendingList.innerHTML = '';
+    
+    pendingFines.forEach(fine => {
+      const li = document.createElement('li');
+      li.className = 'fine-item';
+      
+      const player = players.find(p => p.id === fine.playerId);
+      const playerName = player ? player.name : 'Jugador desconocido';
+      
+      const info = document.createElement('div');
+      info.className = 'fine-info';
+      
+      const playerSpan = document.createElement('div');
+      playerSpan.className = 'fine-player';
+      playerSpan.textContent = playerName;
+      
+      const details = document.createElement('div');
+      details.className = 'fine-details';
+      details.textContent = `${fine.reason} - ${formatDateHuman(fine.date)}`;
+      
+      info.appendChild(playerSpan);
+      info.appendChild(details);
+      
+      const amount = document.createElement('div');
+      amount.className = 'fine-amount pending';
+      amount.textContent = `${fine.amount}€`;
+      
+      const status = document.createElement('div');
+      status.className = 'fine-status pending';
+      status.textContent = 'Pendiente';
+      
+      li.appendChild(info);
+      li.appendChild(amount);
+      li.appendChild(status);
+      
+      finesPendingList.appendChild(li);
+    });
+  }
+
+  function renderFinesSummary() {
+    if (!finesSummaryList || !finesSummaryEmpty || !finesTotal || !finesTotalAmount) return;
+    
+    const currentYear = new Date().getFullYear();
+    const yearFines = fines.filter(f => {
+      const fineYear = new Date(f.date).getFullYear();
+      return fineYear === currentYear;
+    });
+    
+    // Calcular total anual
+    const totalAmount = yearFines.reduce((sum, fine) => sum + fine.amount, 0);
+    
+    // Mostrar/ocultar elementos según si hay multas
+    finesSummaryEmpty.style.display = yearFines.length === 0 ? '' : 'none';
+    finesTotal.style.display = yearFines.length === 0 ? 'none' : '';
+    finesSummaryList.innerHTML = '';
+    
+    if (totalAmount > 0) {
+      finesTotalAmount.textContent = `${totalAmount.toFixed(2)}€`;
+    }
+    
+    // Agrupar por jugador
+    const playerTotals = {};
+    yearFines.forEach(fine => {
+      const player = players.find(p => p.id === fine.playerId);
+      const playerName = player ? player.name : 'Jugador desconocido';
+      
+      if (!playerTotals[playerName]) {
+        playerTotals[playerName] = 0;
+      }
+      playerTotals[playerName] += fine.amount;
+    });
+    
+    // Crear elementos para cada jugador
+    Object.entries(playerTotals)
+      .sort(([,a], [,b]) => b - a) // Ordenar por cantidad descendente
+      .forEach(([playerName, total]) => {
+        const li = document.createElement('li');
+        li.className = 'fine-item';
+        
+        const info = document.createElement('div');
+        info.className = 'fine-info';
+        
+        const playerSpan = document.createElement('div');
+        playerSpan.className = 'fine-player';
+        playerSpan.textContent = playerName;
+        
+        const details = document.createElement('div');
+        details.className = 'fine-details';
+        details.textContent = `Total ${currentYear}`;
+        
+        info.appendChild(playerSpan);
+        info.appendChild(details);
+        
+        const amount = document.createElement('div');
+        amount.className = 'fine-amount';
+        amount.textContent = `${total.toFixed(2)}€`;
+        
+        li.appendChild(info);
+        li.appendChild(amount);
+        
+        finesSummaryList.appendChild(li);
+      });
+  }
+
+  function renderFines() {
+    renderFinesPending();
+    renderFinesSummary();
+  }
+
+  function renderFinePlayerForm() {
+    if (!selectFinePlayer) return;
+    
+    selectFinePlayer.innerHTML = '';
+    
+    if (players.length === 0) {
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = 'No hay jugadores registrados';
+      defaultOpt.disabled = true;
+      selectFinePlayer.appendChild(defaultOpt);
+      return;
+    }
+    
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Selecciona un jugador';
+    defaultOpt.disabled = true;
+    selectFinePlayer.appendChild(defaultOpt);
+    
+    players.forEach(player => {
+      const option = document.createElement('option');
+      option.value = player.id;
+      option.textContent = player.name;
+      selectFinePlayer.appendChild(option);
     });
   }
 
