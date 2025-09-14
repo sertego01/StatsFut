@@ -761,6 +761,7 @@ table.table th { color: var(--muted); font-weight: 500; }
 .fine-player {
   font-weight: 600;
   color: var(--text);
+  text-align: center;
 }
 
 .fine-details {
@@ -787,6 +788,8 @@ table.table th { color: var(--muted); font-weight: 500; }
   font-size: 0.8em;
   font-weight: 600;
   text-transform: uppercase;
+  text-align: center;
+  width: auto;
 }
 
 .fine-status.pending {
