@@ -824,16 +824,9 @@
         matchResults.push(doc.data());
       });
       
-      // Deduplicar resultados localmente por (rivalId + journey), manteniendo el más reciente (por createdAt)
-      const uniqueByKey = new Map();
-      matchResults.forEach(res => {
-        const key = `${res.rivalId}__${res.journey}`;
-        const prev = uniqueByKey.get(key);
-        if (!prev || (Number(res.createdAt || 0) > Number(prev.createdAt || 0))) {
-          uniqueByKey.set(key, res);
-        }
-      });
-      matchResults = Array.from(uniqueByKey.values());
+      // NO deduplicar automáticamente - mantener todos los resultados
+      // La deduplicación se maneja en addMatchResult() cuando se añaden nuevos resultados
+      // matchResults ya contiene todos los datos de Firebase
       
       // Guardar en localStorage
       saveState();
@@ -2665,22 +2658,8 @@
       const journeyBlocks = document.querySelectorAll('.journey-block');
       let hasValidJourney = false;
       
-      // Eliminar jornadas existentes para este rival EN LOCAL
-      matchResults = matchResults.filter(r => r.rivalId !== rival.id);
-      
-      // Además, eliminar jornadas existentes para este rival en Firebase antes de guardar nuevos (evita duplicados acumulados)
-      (async () => {
-        try {
-          if (cloud.enabled && cloud.db && isAuthenticated) {
-            const existingForRival = await cloud.db.collection('matchResults').where('rivalId', '==', rival.id).get();
-            const batch = cloud.db.batch();
-            existingForRival.docs.forEach(doc => batch.delete(doc.ref));
-            await batch.commit();
-          }
-        } catch (cleanupErr) {
-          console.warn('No se pudieron limpiar resultados previos del rival en Firebase:', cleanupErr);
-        }
-      })();
+      // NO eliminar todos los resultados del rival - solo eliminar duplicados específicos por jornada
+      // La deduplicación se manejará en addMatchResult() para cada jornada individual
       
       // Procesar cada bloque de jornada
       const journeyResults = [];
@@ -3047,7 +3026,10 @@
 
   // Función para añadir resultado de partido
   async function addMatchResult(result) {
-    // Añadir a la lista local
+    // Eliminar duplicados existentes para la misma jornada del mismo rival
+    matchResults = matchResults.filter(r => !(r.rivalId === result.rivalId && r.journey === result.journey));
+    
+    // Añadir el nuevo resultado
     matchResults.push(result);
     // IMPORTANTE: No ordenar por fecha para mantener el orden de jornadas preestablecido
     // Las jornadas se mantienen en el orden que el usuario marca en el formulario
