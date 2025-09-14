@@ -3039,15 +3039,15 @@
     
     // Determinar resultado según la ubicación
     if (location === 'local') {
-      // Como local: nuestro equipo es el primer número
+      // Como local: nuestro equipo es el primer número (X), rival el segundo (Y)
       if (ourGoals > rivalGoals) return 'result-win';
       if (ourGoals === rivalGoals) return 'result-draw';
       return 'result-loss';
     } else {
-      // Como visitante: nuestro equipo es el primer número también
-      if (ourGoals > rivalGoals) return 'result-win';
+      // Como visitante: nuestro equipo es el segundo número (Y), rival el primero (X)
+      if (rivalGoals > ourGoals) return 'result-loss';
       if (ourGoals === rivalGoals) return 'result-draw';
-      return 'result-loss';
+      return 'result-win';
     }
   }
 
