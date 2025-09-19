@@ -5079,6 +5079,7 @@
         <div class="player-name">${player.name}</div>
       `;
       
+      // Sistema híbrido: drag and drop para desktop, click para móvil
       playerItem.addEventListener('dragstart', (e) => {
         draggedPlayer = {
           id: player.id,
@@ -5090,6 +5091,30 @@
       
       playerItem.addEventListener('dragend', () => {
         draggedPlayer = null;
+      });
+      
+      // Click/tap para dispositivos móviles
+      playerItem.addEventListener('click', (e) => {
+        // Solo activar en dispositivos táctiles
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        
+        if (isTouchDevice) {
+          // Marcar jugador como seleccionado para colocar
+          draggedPlayer = {
+            id: player.id,
+            name: player.name,
+            number: player.number || '?'
+          };
+          
+          // Añadir clase visual de selección
+          document.querySelectorAll('.player-item').forEach(item => {
+            item.classList.remove('player-selected');
+          });
+          playerItem.classList.add('player-selected');
+          
+          // Mostrar mensaje de instrucción
+          alert('Jugador seleccionado. Toca en el campo para colocarlo.');
+        }
       });
       
       playersList.appendChild(playerItem);
@@ -5172,6 +5197,55 @@
       renderFieldPlayers(); // Redibujar los jugadores
       updateFormationButtonsState(); // Actualizar estado de botones
       renderAvailablePlayers(); // Actualizar lista de jugadores disponibles
+    });
+    
+    // Limpiar selección al tocar fuera del campo
+    document.addEventListener('click', (e) => {
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      
+      if (isTouchDevice && draggedPlayer && !tacticalBoard.contains(e.target) && !e.target.closest('.player-item')) {
+        document.querySelectorAll('.player-item').forEach(item => {
+          item.classList.remove('player-selected');
+        });
+        draggedPlayer = null;
+      }
+    });
+    
+    // Click/tap para dispositivos móviles
+    tacticalBoard.addEventListener('click', (e) => {
+      if (!draggedPlayer) return;
+      
+      const rect = tacticalBoard.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      // Verificar que el click esté dentro del campo
+      if (x < 10 || x > 390 || y < 10 || y > 590) {
+        return;
+      }
+      
+      // Agregar jugador a la formación
+      const newPlayer = {
+        id: draggedPlayer.id,
+        name: draggedPlayer.name,
+        number: draggedPlayer.number,
+        x: x,
+        y: y
+      };
+      
+      currentFormation.push(newPlayer);
+      renderFieldPlayers(); // Redibujar los jugadores
+      updateFormationButtonsState(); // Actualizar estado de botones
+      renderAvailablePlayers(); // Actualizar lista de jugadores disponibles
+      
+      // Limpiar selección
+      document.querySelectorAll('.player-item').forEach(item => {
+        item.classList.remove('player-selected');
+      });
+      draggedPlayer = null;
+      
+      // Mensaje de confirmación (opcional, para no saturar con alerts)
+      // alert('Jugador colocado en el campo');
     });
     
     // Event listeners para los botones

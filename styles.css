@@ -1029,6 +1029,27 @@ table.table th { color: var(--muted); font-weight: 500; }
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.player-item.player-selected {
+  background: var(--success);
+  color: white;
+  border-color: var(--success);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  }
+  100% {
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+
 .player-number {
   display: flex;
   align-items: center;
