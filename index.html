@@ -23,6 +23,9 @@
           <button class="tab-btn" data-target="tab-partidos">Partidos</button>
           <button class="tab-btn" data-target="tab-estadisticas-partidos">Estadísticas</button>
         </div>
+        <div class="tabs-row cols-1">
+          <button class="tab-btn" data-target="tab-alineaciones">Alineaciones</button>
+        </div>
         <div class="tabs-row cols-2">
           <button class="tab-btn" data-target="tab-rivales">Rivales</button>
           <button class="tab-btn" data-target="tab-calendario">Calendario</button>
@@ -214,6 +217,44 @@
 
 
 
+      </section>
+
+      <section id="tab-alineaciones" class="tab-section">
+        <div class="card">
+          <h2>Pizarra Táctica</h2>
+          <div class="formation-controls">
+            <label>
+              <span>Fecha de la convocatoria</span>
+              <select id="formation-convocation" required>
+                <option value="">Selecciona una convocatoria</option>
+              </select>
+            </label>
+            <div class="formation-actions">
+              <button id="clear-formation" class="btn">Limpiar</button>
+              <button id="save-formation" class="btn primary">Guardar</button>
+              <button id="download-formation" class="btn secondary">Descargar imagen</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="tactical-board-container">
+            <div id="tactical-board" class="field-background">
+              <img src="campo.jpg" alt="Campo de fútbol" class="field-image">
+              <div id="field-players-container"></div>
+            </div>
+            <div class="formation-info">
+              <h3>Jugadores disponibles</h3>
+              <div id="players-formation-list" class="players-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Alineaciones guardadas</h3>
+          <div id="formations-empty" class="empty-state">No hay alineaciones guardadas.</div>
+          <ul id="formations-list" class="list"></ul>
+        </div>
       </section>
 
       <section id="tab-rivales" class="tab-section">
@@ -610,6 +651,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
+    <!-- html2canvas for image capture -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
     <script src="app.js" defer></script>
   </body>
   </html>

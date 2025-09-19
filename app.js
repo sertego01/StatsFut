@@ -10,6 +10,7 @@
     rivals: 'asistencia_rivals',
     matchResults: 'asistencia_matchResults',
     fines: 'asistencia_fines',
+    formations: 'asistencia_formations',
     lastSelectedDate: 'asistencia_last_date'
   };
 
@@ -19,6 +20,7 @@
   let matches = [];
   let convocations = [];
   let fines = [];
+  let formations = [];
 
   // ---- Utilidades ----
   function generateId(prefix) {
@@ -33,6 +35,7 @@
     localStorage.setItem(STORAGE_KEYS.rivals, JSON.stringify(rivals));
     localStorage.setItem(STORAGE_KEYS.matchResults, JSON.stringify(matchResults));
     localStorage.setItem(STORAGE_KEYS.fines, JSON.stringify(fines));
+    localStorage.setItem(STORAGE_KEYS.formations, JSON.stringify(formations));
   }
 
   function loadState() {
@@ -44,6 +47,7 @@
       const r = JSON.parse(localStorage.getItem(STORAGE_KEYS.rivals) || '[]');
       const mr = JSON.parse(localStorage.getItem(STORAGE_KEYS.matchResults) || '[]');
       const f = JSON.parse(localStorage.getItem(STORAGE_KEYS.fines) || '[]');
+      const form = JSON.parse(localStorage.getItem(STORAGE_KEYS.formations) || '[]');
       if (Array.isArray(p)) players = p; else players = [];
       if (Array.isArray(s)) sessions = s; else sessions = [];
       if (Array.isArray(m)) matches = m; else matches = [];
@@ -51,6 +55,7 @@
       if (Array.isArray(r)) rivals = r; else rivals = [];
       if (Array.isArray(mr)) matchResults = mr; else matchResults = [];
       if (Array.isArray(f)) fines = f; else fines = [];
+      if (Array.isArray(form)) formations = form; else formations = [];
     } catch (e) {
       players = [];
       sessions = [];
@@ -59,6 +64,7 @@
       rivals = [];
       matchResults = [];
       fines = [];
+      formations = [];
     }
     // Normaliza: ordena jugadores por nombre
     players.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
@@ -1030,7 +1036,7 @@
   // ---- Auth: control de visibilidad/edición ----
   function applyAuthRestrictions() {
     // Tabs restringidas (calendario y multas ahora son públicos)
-    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales','tab-add-fines'];
+    const restrictedTargets = ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-alineaciones','tab-rivales','tab-add-fines'];
     const publicTargets = ['tab-estadisticas','tab-estadisticas-partidos','tab-calendario','tab-fines'];
     const allTabButtons = Array.from(document.querySelectorAll('.tab-btn'));
     allTabButtons.forEach(btn => {
@@ -1100,7 +1106,7 @@
     // Si la pestaña activa es restringida y no está autenticado, saltar a estadísticas
     const activeBtn = document.querySelector('.tab-btn.is-active');
     const activeTarget = activeBtn ? activeBtn.getAttribute('data-target') : null;
-    if (!isAuthenticated && ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-rivales'].includes(activeTarget)) {
+    if (!isAuthenticated && ['tab-jugadores','tab-entrenamientos','tab-partidos','tab-alineaciones','tab-rivales'].includes(activeTarget)) {
       const statsBtn = document.querySelector('.tab-btn[data-target="tab-estadisticas"]') || document.querySelector('.tab-btn[data-target="tab-estadisticas-partidos"]');
       if (statsBtn) statsBtn.click();
     }
@@ -1321,6 +1327,8 @@
       renderRecentConvocations();
     } else if (targetId === 'tab-estadisticas-partidos') {
       renderMatchStats();
+    } else if (targetId === 'tab-alineaciones') {
+      renderFormations();
     } else if (targetId === 'tab-rivales') {
       renderRivalsList();
     } else if (targetId === 'tab-calendario') {
@@ -4857,7 +4865,543 @@
     };
   }
 
+  // ---- Alineaciones ----
+  let currentFormation = [];
+  let draggedPlayer = null;
+  let tacticalBoard = null;
+  let fieldPlayersContainer = null;
 
+  // Función para renderizar la pizarra táctica
+  function renderFormations() {
+    tacticalBoard = document.getElementById('tactical-board');
+    fieldPlayersContainer = document.getElementById('field-players-container');
+    const playersList = document.getElementById('players-formation-list');
+    const formationsList = document.getElementById('formations-list');
+    const formationsEmpty = document.getElementById('formations-empty');
+    const convocationSelect = document.getElementById('formation-convocation');
+
+    if (!tacticalBoard || !fieldPlayersContainer || !playersList || !formationsList || !formationsEmpty || !convocationSelect) return;
+    
+    // Renderizar convocatorias disponibles
+    renderAvailableConvocations();
+    
+    // Renderizar jugadores en el campo
+    renderFieldPlayers();
+    
+    // Renderizar jugadores disponibles
+    renderAvailablePlayers();
+    
+    // Renderizar formaciones guardadas
+    renderSavedFormations();
+    
+    // Configurar event listeners
+    setupFormationEventListeners();
+  }
+
+  function renderAvailableConvocations() {
+    const convocationSelect = document.getElementById('formation-convocation');
+    if (!convocationSelect) return;
+    
+    // Limpiar opciones existentes
+    convocationSelect.innerHTML = '<option value="">Selecciona una convocatoria</option>';
+    
+    if (convocations.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No hay convocatorias disponibles';
+      option.disabled = true;
+      convocationSelect.appendChild(option);
+      return;
+    }
+    
+    // Ordenar convocatorias por fecha (más recientes primero)
+    const sortedConvocations = [...convocations].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    sortedConvocations.forEach(convocation => {
+      const option = document.createElement('option');
+      option.value = convocation.date;
+      
+      // Contar solo jugadores convocados (con valor 'C')
+      const convocatedCount = convocation.players ? 
+        Object.values(convocation.players).filter(status => status === 'C').length : 0;
+      
+      option.textContent = `${formatDateHuman(convocation.date)} - ${convocatedCount} jugadores`;
+      convocationSelect.appendChild(option);
+    });
+  }
+
+  function renderFieldPlayers() {
+    if (!fieldPlayersContainer) return;
+    
+    // Limpiar jugadores existentes
+    fieldPlayersContainer.innerHTML = '';
+    
+    // Renderizar cada jugador en la formación actual
+    currentFormation.forEach(player => {
+      const playerElement = document.createElement('div');
+      playerElement.className = 'field-player';
+      playerElement.style.left = player.x + 'px';
+      playerElement.style.top = player.y + 'px';
+      playerElement.dataset.playerId = player.id;
+      
+      playerElement.innerHTML = `
+        <div class="field-player-circle" contenteditable="true" data-original-number="${player.number || ''}">${player.number || '?'}</div>
+        <div class="field-player-name">${player.name || 'Jugador'}</div>
+        <button class="remove-player-btn" title="Quitar del campo">×</button>
+      `;
+      
+      // Hacer el jugador arrastrable
+      playerElement.draggable = true;
+      playerElement.style.pointerEvents = 'auto';
+      
+      // Event listeners para mover jugadores
+      playerElement.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        playerElement.style.opacity = '0.5';
+      });
+      
+      playerElement.addEventListener('dragend', () => {
+        playerElement.style.opacity = '1';
+      });
+      
+      playerElement.addEventListener('drag', (e) => {
+        if (e.clientX && e.clientY) {
+          const rect = tacticalBoard.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          
+          // Verificar que esté dentro del campo
+          if (x >= 10 && x <= 390 && y >= 10 && y <= 590) {
+            playerElement.style.left = x + 'px';
+            playerElement.style.top = y + 'px';
+            player.x = x;
+            player.y = y;
+          }
+        }
+      });
+      
+      // Event listener para editar el número
+      const numberElement = playerElement.querySelector('.field-player-circle');
+      numberElement.addEventListener('blur', (e) => {
+        const newNumber = e.target.textContent.trim();
+        if (newNumber && newNumber !== '?' && !isNaN(newNumber)) {
+          player.number = newNumber;
+          e.target.textContent = newNumber;
+        } else if (!newNumber || newNumber === '') {
+          player.number = '';
+          e.target.textContent = '?';
+        }
+      });
+      
+      numberElement.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.target.blur();
+        }
+      });
+      
+      numberElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target.textContent === '?') {
+          e.target.textContent = '';
+        }
+      });
+      
+      // Event listener para el botón de eliminar
+      const removeBtn = playerElement.querySelector('.remove-player-btn');
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm(`¿Quitar a ${player.name} del campo?`)) {
+          currentFormation = currentFormation.filter(p => p.id !== player.id);
+          renderFieldPlayers();
+          renderAvailablePlayers();
+          updateFormationButtonsState();
+        }
+      });
+      
+      fieldPlayersContainer.appendChild(playerElement);
+    });
+  }
+
+  function renderAvailablePlayers() {
+    const playersList = document.getElementById('players-formation-list');
+    const convocationSelect = document.getElementById('formation-convocation');
+    
+    if (!playersList || !convocationSelect) return;
+    
+    playersList.innerHTML = '';
+    
+    // Si no hay convocatoria seleccionada, no mostrar jugadores
+    if (!convocationSelect.value) {
+      const emptyItem = document.createElement('div');
+      emptyItem.className = 'empty-state';
+      emptyItem.textContent = 'Selecciona una convocatoria para ver los jugadores disponibles';
+      playersList.appendChild(emptyItem);
+      return;
+    }
+    
+    // Obtener la convocatoria seleccionada
+    const selectedConvocation = convocations.find(c => c.date === convocationSelect.value);
+    if (!selectedConvocation || !selectedConvocation.players) {
+      const emptyItem = document.createElement('div');
+      emptyItem.className = 'empty-state';
+      emptyItem.textContent = 'No hay jugadores convocados para esta fecha';
+      playersList.appendChild(emptyItem);
+      return;
+    }
+    
+    // Obtener IDs de jugadores ya en el campo
+    const playersOnField = currentFormation.map(p => p.id);
+    
+    // Filtrar jugadores convocados que no estén en el campo
+    const availablePlayers = players.filter(player => {
+      const isConvocated = selectedConvocation.players && selectedConvocation.players[player.id] === 'C';
+      const notOnField = !playersOnField.includes(player.id);
+      return isConvocated && notOnField;
+    });
+    
+    if (availablePlayers.length === 0) {
+      const emptyItem = document.createElement('div');
+      emptyItem.className = 'empty-state';
+      emptyItem.textContent = 'Todos los jugadores convocados ya están en el campo';
+      playersList.appendChild(emptyItem);
+      return;
+    }
+    
+    availablePlayers.forEach(player => {
+      const playerItem = document.createElement('div');
+      playerItem.className = 'player-item';
+      playerItem.draggable = true;
+      playerItem.dataset.playerId = player.id;
+      
+      playerItem.innerHTML = `
+        <div class="player-number">${player.number || '?'}</div>
+        <div class="player-name">${player.name}</div>
+      `;
+      
+      playerItem.addEventListener('dragstart', (e) => {
+        draggedPlayer = {
+          id: player.id,
+          name: player.name,
+          number: player.number || '?'
+        };
+        e.dataTransfer.effectAllowed = 'copy';
+      });
+      
+      playerItem.addEventListener('dragend', () => {
+        draggedPlayer = null;
+      });
+      
+      playersList.appendChild(playerItem);
+    });
+  }
+
+  function renderSavedFormations() {
+    const formationsList = document.getElementById('formations-list');
+    const formationsEmpty = document.getElementById('formations-empty');
+    
+    if (!formationsList || !formationsEmpty) return;
+    
+    formationsList.innerHTML = '';
+    
+    if (formations.length === 0) {
+      formationsEmpty.style.display = 'block';
+      return;
+    }
+    
+    formationsEmpty.style.display = 'none';
+    
+    formations.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    formations.forEach(formation => {
+      const formationItem = document.createElement('li');
+      formationItem.className = 'formation-item';
+      
+      formationItem.innerHTML = `
+        <div class="formation-info-item">
+          <div class="formation-name-item">${formation.name}</div>
+          <div class="formation-date-item">${formatDateHuman(formation.createdAt.split('T')[0])}</div>
+        </div>
+        <div class="formation-actions-item">
+          <button class="btn" onclick="loadFormation('${formation.id}')">Cargar</button>
+          <button class="btn" onclick="downloadFormationImage('${formation.id}')">Descargar</button>
+          <button class="btn danger" onclick="deleteFormation('${formation.id}')">Eliminar</button>
+        </div>
+      `;
+      
+      formationsList.appendChild(formationItem);
+    });
+  }
+
+  function setupFormationEventListeners() {
+    if (!tacticalBoard) return;
+    
+    // Event listeners para el campo
+    tacticalBoard.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    
+    tacticalBoard.addEventListener('drop', (e) => {
+      e.preventDefault();
+      
+      if (!draggedPlayer) return;
+      
+      const rect = tacticalBoard.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      // Verificar que el drop esté dentro del campo
+      if (x < 10 || x > 390 || y < 10 || y > 590) {
+        return;
+      }
+      
+      // Verificar que no haya un jugador en esa posición
+      // Permitir múltiples jugadores en la misma área
+      
+      // Agregar jugador a la formación
+      const newPlayer = {
+        id: draggedPlayer.id,
+        name: draggedPlayer.name,
+        number: draggedPlayer.number,
+        x: x,
+        y: y
+      };
+      
+      currentFormation.push(newPlayer);
+      renderFieldPlayers(); // Redibujar los jugadores
+      updateFormationButtonsState(); // Actualizar estado de botones
+      renderAvailablePlayers(); // Actualizar lista de jugadores disponibles
+    });
+    
+    // Event listeners para los botones
+    const clearBtn = document.getElementById('clear-formation');
+    const saveBtn = document.getElementById('save-formation');
+    const downloadBtn = document.getElementById('download-formation');
+    
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        if (confirm('¿Estás seguro de que quieres limpiar la formación actual?')) {
+          currentFormation = [];
+          renderFieldPlayers();
+          updateFormationButtonsState();
+          renderAvailablePlayers();
+        }
+      });
+    }
+    
+    if (saveBtn) {
+      saveBtn.addEventListener('click', saveFormation);
+    }
+    
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', downloadCurrentFormation);
+    }
+    
+    // Actualizar estado de los botones según disponibilidad de convocatorias
+    updateFormationButtonsState();
+  }
+
+  function updateFormationButtonsState() {
+    const saveBtn = document.getElementById('save-formation');
+    const downloadBtn = document.getElementById('download-formation');
+    const clearBtn = document.getElementById('clear-formation');
+    const convocationSelect = document.getElementById('formation-convocation');
+    
+    const hasConvocations = convocations.length > 0;
+    const hasSelectedConvocation = convocationSelect && convocationSelect.value;
+    
+    if (saveBtn) {
+      saveBtn.disabled = !hasConvocations || !hasSelectedConvocation;
+    }
+    
+    if (downloadBtn) {
+      downloadBtn.disabled = !hasConvocations || currentFormation.length === 0;
+    }
+    
+    if (clearBtn) {
+      clearBtn.disabled = currentFormation.length === 0;
+    }
+    
+    // Agregar event listener al select para actualizar botones y jugadores
+    if (convocationSelect) {
+      convocationSelect.addEventListener('change', () => {
+        // Limpiar formación actual cuando se cambia la convocatoria
+        currentFormation = [];
+        renderFieldPlayers();
+        updateFormationButtonsState();
+        renderAvailablePlayers();
+      });
+    }
+  }
+
+  function saveFormation() {
+    const convocationSelect = document.getElementById('formation-convocation');
+    const selectedConvocation = convocationSelect.value;
+    
+    if (!selectedConvocation) {
+      alert('Por favor, selecciona una convocatoria para la formación.');
+      return;
+    }
+    
+    if (currentFormation.length === 0) {
+      alert('No hay jugadores en la formación para guardar.');
+      return;
+    }
+    
+    // Verificar si ya existe una formación para esta convocatoria
+    const existingFormation = formations.find(f => f.convocationDate === selectedConvocation);
+    if (existingFormation) {
+      if (!confirm(`Ya existe una formación para la convocatoria del ${formatDateHuman(selectedConvocation)}. ¿Deseas reemplazarla?`)) {
+        return;
+      }
+      // Eliminar la formación existente
+      formations = formations.filter(f => f.convocationDate !== selectedConvocation);
+    }
+    
+    const formation = {
+      id: generateId('formation'),
+      name: `Alineación - ${formatDateHuman(selectedConvocation)}`,
+      convocationDate: selectedConvocation,
+      players: [...currentFormation],
+      createdAt: new Date().toISOString()
+    };
+    
+    formations.push(formation);
+    saveState();
+    
+    // Limpiar formulario y formación actual
+    convocationSelect.value = '';
+    currentFormation = [];
+    renderFieldPlayers();
+    
+    // Actualizar lista
+    renderSavedFormations();
+    
+    // Actualizar estado de botones y lista de jugadores
+    updateFormationButtonsState();
+    renderAvailablePlayers();
+    
+    alert('Formación guardada correctamente.');
+  }
+
+  function loadFormation(formationId) {
+    const formation = formations.find(f => f.id === formationId);
+    if (!formation) return;
+    
+    currentFormation = [...formation.players];
+    
+    // Seleccionar la convocatoria correspondiente
+    const convocationSelect = document.getElementById('formation-convocation');
+    if (convocationSelect && formation.convocationDate) {
+      convocationSelect.value = formation.convocationDate;
+    }
+    
+    renderFieldPlayers();
+    renderAvailablePlayers();
+    
+    alert(`Formación "${formation.name}" cargada.`);
+  }
+
+  function deleteFormation(formationId) {
+    const formation = formations.find(f => f.id === formationId);
+    if (!formation) return;
+    
+    if (confirm(`¿Estás seguro de que quieres eliminar la formación "${formation.name}"?`)) {
+      formations = formations.filter(f => f.id !== formationId);
+      saveState();
+      renderSavedFormations();
+    }
+  }
+
+  function downloadCurrentFormation() {
+    if (currentFormation.length === 0) {
+      alert('No hay formación para descargar.');
+      return;
+    }
+    
+    // Usar html2canvas para capturar el campo con los jugadores
+    if (typeof html2canvas === 'undefined') {
+      // Cargar html2canvas dinámicamente
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      script.onload = () => captureFormation();
+      document.head.appendChild(script);
+    } else {
+      captureFormation();
+    }
+    
+    function captureFormation() {
+      html2canvas(tacticalBoard, {
+        width: 400,
+        height: 600,
+        scale: 2,
+        backgroundColor: null
+      }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `alineacion-${new Date().toISOString().split('T')[0]}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+      }).catch(error => {
+        console.error('Error capturando formación:', error);
+        alert('Error al generar la imagen. Intenta nuevamente.');
+      });
+    }
+  }
+
+  function downloadFormationImage(formationId) {
+    const formation = formations.find(f => f.id === formationId);
+    if (!formation) return;
+    
+    // Guardar formación actual
+    const originalFormation = [...currentFormation];
+    
+    // Cargar formación temporalmente
+    currentFormation = [...formation.players];
+    renderFieldPlayers();
+    
+    // Capturar después de un pequeño delay para que se renderice
+    setTimeout(() => {
+      if (typeof html2canvas === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        script.onload = () => captureSavedFormation();
+        document.head.appendChild(script);
+      } else {
+        captureSavedFormation();
+      }
+      
+      function captureSavedFormation() {
+        html2canvas(tacticalBoard, {
+          width: 400,
+          height: 600,
+          scale: 2,
+          backgroundColor: null
+        }).then(canvas => {
+          const link = document.createElement('a');
+          link.download = `${formation.name.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+          link.href = canvas.toDataURL();
+          link.click();
+          
+          // Restaurar formación original
+          currentFormation = originalFormation;
+          renderFieldPlayers();
+        }).catch(error => {
+          console.error('Error capturando formación:', error);
+          alert('Error al generar la imagen. Intenta nuevamente.');
+          
+          // Restaurar formación original en caso de error
+          currentFormation = originalFormation;
+          renderFieldPlayers();
+        });
+      }
+    }, 100);
+  }
+
+  // Hacer funciones globales para los event handlers del HTML
+  window.loadFormation = loadFormation;
+  window.downloadFormationImage = downloadFormationImage;
+  window.deleteFormation = deleteFormation;
 
   document.addEventListener('DOMContentLoaded', init);
 })();
