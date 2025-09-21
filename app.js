@@ -3781,12 +3781,31 @@
       });
     });
     
-    // Ordenar por fecha, poniendo los que no tienen fecha al final
+    // Ordenar por fecha y luego por hora, poniendo los que no tienen fecha al final
     allResults.sort((a, b) => {
       if (!a.date && !b.date) return 0; // Ambos sin fecha, mantener orden
       if (!a.date) return 1; // A sin fecha, poner al final
       if (!b.date) return -1; // B sin fecha, poner al final
-      return new Date(a.date) - new Date(b.date); // Ordenar por fecha (antigua primero)
+      
+      // Comparar fechas
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      const dateDiff = dateA - dateB;
+      
+      // Si las fechas son diferentes, ordenar por fecha
+      if (dateDiff !== 0) return dateDiff;
+      
+      // Si las fechas son iguales, ordenar por hora
+      if (a.time && b.time) {
+        return a.time.localeCompare(b.time); // Ordenar por hora (menor a mayor)
+      }
+      
+      // Si uno tiene hora y otro no, el que tiene hora va primero
+      if (a.time && !b.time) return -1;
+      if (!a.time && b.time) return 1;
+      
+      // Si ninguno tiene hora, mantener orden original
+      return 0;
     });
     
     allResults.forEach(result => {
