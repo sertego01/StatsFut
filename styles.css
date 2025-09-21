@@ -539,7 +539,19 @@ table.table th { color: var(--muted); font-weight: 500; }
   background: rgba(239, 68, 68, 0.1);
 }
 
-.match-info, .result-info {
+/* Estilos para la nueva estructura de journey-block */
+.journey-jornada {
+  margin-bottom: 16px;
+}
+
+.journey-location-result {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.journey-datetime {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
@@ -626,14 +638,18 @@ table.table th { color: var(--muted); font-weight: 500; }
 }
 
 .calendar-date {
-  width: 80px;
-  min-width: 60px;
-  height: 80px;
+  width: 90px;
+  min-width: 70px;
+  height: 90px;
   border-radius: 12px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   background: var(--panel);
   color: var(--text);
+  padding: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Estilo por condición local/visitante */
@@ -641,20 +657,39 @@ table.table th { color: var(--muted); font-weight: 500; }
   background: var(--primary);
   color: #0b1226;
 }
+
+.calendar-date.local .time {
+  color: #0b1226;
+}
+
 .calendar-date.visitante {
   background: #64748b; /* slate-500 como contraste */
   color: #0b1226;
 }
 
+.calendar-date.visitante .time {
+  color: #0b1226;
+}
+
 .calendar-date .day {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   line-height: 1;
+  margin-bottom: 2px;
 }
 .calendar-date .month {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   opacity: 0.9;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.calendar-date .time {
+  font-size: 15px;
+  opacity: 0.75;
+  font-weight: 600;
+  text-align: center;
 }
 
 .calendar-match {

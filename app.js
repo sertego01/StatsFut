@@ -2858,6 +2858,7 @@
         const journey = document.getElementById(`match-journey-${journeyNum}`).value;
         const location = document.querySelector(`input[name="match-location-${journeyNum}"]:checked`)?.value;
         const date = document.getElementById(`match-date-${journeyNum}`).value;
+        const time = document.getElementById(`match-time-${journeyNum}`).value;
         const result = document.getElementById(`match-result-${journeyNum}`).value.trim();
         const comments = document.getElementById(`match-comments-${journeyNum}`).value.trim();
         
@@ -2890,6 +2891,7 @@
             journey: journey,
             location: location,
             date: date || null,
+            time: time || null,
             result: result || null,
             comments: comments || null,
             createdAt: Date.now()
@@ -3039,6 +3041,10 @@
       // Cargar fecha (si existe)
       const dateInput = document.getElementById(`match-date-${journeyNum}`);
       if (dateInput && result.date) dateInput.value = result.date;
+      
+      // Cargar hora (si existe)
+      const timeInput = document.getElementById(`match-time-${journeyNum}`);
+      if (timeInput && result.time) timeInput.value = result.time;
       
       // Cargar resultado (si existe)
       const resultInput = document.getElementById(`match-result-${journeyNum}`);
@@ -3812,6 +3818,14 @@
         
         date.appendChild(day);
         date.appendChild(month);
+        
+        // Añadir hora si está disponible
+        if (result.time) {
+          const time = document.createElement('div');
+          time.className = 'time';
+          time.textContent = result.time;
+          date.appendChild(time);
+        }
       } else {
         // Si no hay fecha, mostrar solo la jornada
         const day = document.createElement('div');
@@ -4407,6 +4421,7 @@
       const locationLocal = block.querySelector('input[id^="location-local-"]');
       const locationVisitante = block.querySelector('input[id^="location-visitante-"]');
       const dateInput = block.querySelector('input[id^="match-date-"]');
+      const timeInput = block.querySelector('input[id^="match-time-"]');
       const resultInput = block.querySelector('input[id^="match-result-"]');
       const commentsInput = block.querySelector('textarea[id^="match-comments-"]');
       
@@ -4420,6 +4435,7 @@
         locationVisitante.name = `match-location-${newNumber}`;
       }
       if (dateInput) dateInput.id = `match-date-${newNumber}`;
+      if (timeInput) timeInput.id = `match-time-${newNumber}`;
       if (resultInput) resultInput.id = `match-result-${newNumber}`;
       if (commentsInput) commentsInput.id = `match-comments-${newNumber}`;
     });
@@ -4481,7 +4497,7 @@
           🗑️
         </button>
       </div>
-      <div class="match-info">
+      <div class="journey-jornada">
         <label>
           <span>Jornada</span>
           <select id="match-journey-${journeyNumber}" required>
@@ -4519,6 +4535,9 @@
             <option value="30">Jornada 30</option>
           </select>
         </label>
+      </div>
+      
+      <div class="journey-location-result">
         <label>
           <span>Local/Visitante</span>
           <div class="radio-group">
@@ -4532,16 +4551,20 @@
             </div>
           </div>
         </label>
+        <label>
+          <span>Resultado</span>
+          <input id="match-result-${journeyNumber}" name="match-result-${journeyNumber}" type="text" placeholder="Ej: 2-1, 0-0, 3-2" />
+        </label>
       </div>
       
-      <div class="result-info">
+      <div class="journey-datetime">
         <label>
           <span>Fecha del partido</span>
           <input id="match-date-${journeyNumber}" name="match-date-${journeyNumber}" type="date" />
         </label>
         <label>
-          <span>Resultado</span>
-          <input id="match-result-${journeyNumber}" name="match-result-${journeyNumber}" type="text" placeholder="Ej: 2-1, 0-0, 3-2" />
+          <span>Hora del partido</span>
+          <input id="match-time-${journeyNumber}" name="match-time-${journeyNumber}" type="time" />
         </label>
       </div>
       
