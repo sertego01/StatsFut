@@ -1762,14 +1762,30 @@
     defaultOpt.disabled = true;
     selectMatchPlayer.appendChild(defaultOpt);
     
+    let availablePlayers = 0;
     players.forEach(p => {
       if (convocation.players[p.id] === 'C') {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.name;
-      selectMatchPlayer.appendChild(opt);
+        // Verificar si este jugador ya tiene datos registrados para esta fecha
+        const hasExistingEntry = findMatchEntryByPlayerAndDate(p.id, selectedDate);
+        if (!hasExistingEntry) {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name;
+          selectMatchPlayer.appendChild(opt);
+          availablePlayers++;
+        }
       }
     });
+    
+    // Si no hay jugadores disponibles, mostrar mensaje
+    if (availablePlayers === 0) {
+      selectMatchPlayer.innerHTML = '';
+      const noPlayersOpt = document.createElement('option');
+      noPlayersOpt.value = '';
+      noPlayersOpt.textContent = 'Todos los jugadores ya tienen datos registrados';
+      noPlayersOpt.disabled = true;
+      selectMatchPlayer.appendChild(noPlayersOpt);
+    }
   }
 
   function renderConvocationList() {
@@ -2510,11 +2526,14 @@
         renderMatchStats();
         renderRecentMatchEntries();
         
-      // Limpiar formulario
-      inputMatchGoals.value = '0';
-      inputMatchYellows.value = '0';
-      inputMatchReds.value = '0';
-      inputMatchMinutes.value = '0';
+        // Actualizar el select de jugadores
+        renderMatchPlayerForm();
+        
+        // Limpiar formulario
+        inputMatchGoals.value = '0';
+        inputMatchYellows.value = '0';
+        inputMatchReds.value = '0';
+        inputMatchMinutes.value = '0';
         return;
       }
       
@@ -2539,7 +2558,10 @@
       renderMatchStats();
       renderRecentMatchEntries();
       
-      // Limpiar a 0 manteniendo la fecha y el jugador seleccionado
+      // Actualizar el select de jugadores para eliminar el jugador registrado
+      renderMatchPlayerForm();
+      
+      // Limpiar a 0 manteniendo la fecha
       inputMatchGoals.value = '0';
       inputMatchYellows.value = '0';
       inputMatchReds.value = '0';

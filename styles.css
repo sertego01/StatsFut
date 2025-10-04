@@ -638,9 +638,9 @@ table.table th { color: var(--muted); font-weight: 500; }
 }
 
 .calendar-date {
-  width: 90px;
-  min-width: 70px;
-  height: 90px;
+  width: 70px;
+  min-width: 60px;
+  height: 70px;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
