@@ -251,12 +251,19 @@
     }
   }
 
-  function computeMatchStats() {
+  function computeMatchStats(rangeFrom, rangeTo) {
     const totalsByPlayer = new Map();
     players.forEach(p => totalsByPlayer.set(p.id, { goals: 0, yellows: 0, reds: 0, minutes: 0, convocations: 0 }));
     
-    // Contar convocatorias
-    convocations.forEach(conv => {
+    // Filtrar convocatorias por rango de fechas
+    const filteredConvocations = convocations.filter(conv => {
+      if (rangeFrom && conv.date < rangeFrom) return false;
+      if (rangeTo && conv.date > rangeTo) return false;
+      return true;
+    });
+    
+    // Contar convocatorias filtradas
+    filteredConvocations.forEach(conv => {
       Object.entries(conv.players).forEach(([playerId, status]) => {
         if (status === 'C') {
           const agg = totalsByPlayer.get(playerId);
@@ -265,7 +272,15 @@
       });
     });
     
-    matches.forEach(ent => {
+    // Filtrar partidos por rango de fechas
+    const filteredMatches = matches.filter(match => {
+      if (rangeFrom && match.date < rangeFrom) return false;
+      if (rangeTo && match.date > rangeTo) return false;
+      return true;
+    });
+    
+    // Contar estadísticas de partidos filtrados
+    filteredMatches.forEach(ent => {
       const agg = totalsByPlayer.get(ent.playerId);
       if (!agg) return;
       const goals = Number(ent.goals) || 0;
@@ -407,6 +422,47 @@
 
   
 
+  // Funciones para manejo de sesión persistente
+  function saveSessionToStorage(userId) {
+    const sessionData = {
+      userId: userId,
+      timestamp: Date.now(),
+      expiresAt: Date.now() + (3 * 60 * 60 * 1000) // 3 horas
+    };
+    localStorage.setItem('asistencia_session', JSON.stringify(sessionData));
+  }
+
+  function clearSessionFromStorage() {
+    localStorage.removeItem('asistencia_session');
+  }
+
+  function getStoredSession() {
+    try {
+      const sessionData = localStorage.getItem('asistencia_session');
+      if (!sessionData) return null;
+      
+      const session = JSON.parse(sessionData);
+      const now = Date.now();
+      
+      // Verificar si la sesión ha expirado
+      if (now > session.expiresAt) {
+        clearSessionFromStorage();
+        return null;
+      }
+      
+      return session;
+    } catch (error) {
+      console.error('Error al leer sesión almacenada:', error);
+      clearSessionFromStorage();
+      return null;
+    }
+  }
+
+  function isSessionValid() {
+    const session = getStoredSession();
+    return session !== null;
+  }
+
   // Inicializar Firebase si está habilitado
   async function initFirebaseIfEnabled() {
     if (!cloud.enabled || !cloud.firebaseConfig) return;
@@ -447,6 +503,33 @@
         cloud.app = firebase.initializeApp(cloud.firebaseConfig);
         cloud.db = firebase.firestore(cloud.app);
         cloud.auth = firebase.auth(cloud.app);
+        
+        // Configurar listener de estado de autenticación
+        cloud.auth.onAuthStateChanged(async (user) => {
+          if (user && !user.isAnonymous) {
+            // Usuario autenticado (no anónimo)
+            isAuthenticated = true;
+            saveSessionToStorage(user.uid);
+            applyAuthRestrictions();
+            
+            // Cargar datos de Firebase después del login automático
+            await loadDataFromFirebase();
+            startCloudSync();
+            
+            // Refrescar UI
+            renderPlayersList();
+            renderAttendanceList();
+            renderStats();
+            renderMatchPlayerForm();
+            renderMatchStats();
+            renderRecentMatchEntries();
+          } else {
+            // Usuario no autenticado o anónimo
+            isAuthenticated = false;
+            clearSessionFromStorage();
+            applyAuthRestrictions();
+          }
+        });
       }
 
       // Si no hay sesión iniciada, usar autenticación anónima para lectura pública
@@ -1167,20 +1250,8 @@
           await initFirebaseIfEnabled();
           if (!cloud.auth) throw new Error('Auth no disponible');
           await cloud.auth.signInWithEmailAndPassword(email, password);
-          isAuthenticated = true;
-          applyAuthRestrictions();
+          // El listener onAuthStateChanged se encargará de actualizar isAuthenticated y la UI
           loginModal.hidden = true;
-          
-          // Cargar datos de Firebase después del login
-          await loadDataFromFirebase();
-          
-          // refrescar datos visibles
-          renderPlayersList();
-          renderAttendanceList();
-          renderStats();
-          renderMatchPlayerForm();
-          renderMatchStats();
-          renderRecentMatchEntries();
         } catch (err) {
           console.error(err);
           if (loginError) loginError.textContent = err.message || 'Error al iniciar sesión';
@@ -1198,8 +1269,7 @@
             }
           }
         } catch {}
-        isAuthenticated = false;
-        applyAuthRestrictions();
+        // El listener onAuthStateChanged se encargará de limpiar la sesión y actualizar la UI
       });
     }
   }
@@ -1851,7 +1921,7 @@
 
   function renderRecentMatchEntries() {
     if (!recentMatchEntries) return;
-    const items = matches.slice(-10).reverse();
+    const items = matches.slice(-20).reverse();
     recentMatchEntries.innerHTML = '';
     items.forEach(ent => {
       const player = players.find(p => p.id === ent.playerId);
@@ -2076,6 +2146,30 @@
     inputStatsTo.value = '';
     renderStats();
   });
+
+  // Filtros de estadísticas de partidos
+  if (formMStatsFilter) {
+    formMStatsFilter.addEventListener('input', () => {
+      renderMatchStats();
+    });
+  }
+  
+  // Botón de buscar estadísticas de partidos
+  const btnMStatsSearch = $('#mstats-search');
+  if (btnMStatsSearch) {
+    btnMStatsSearch.addEventListener('click', () => {
+      renderMatchStats();
+    });
+  }
+  
+  // Botón de limpiar filtros de estadísticas de partidos
+  if (btnMStatsClear) {
+    btnMStatsClear.addEventListener('click', () => {
+      inputMStatsFrom.value = '';
+      inputMStatsTo.value = '';
+      renderMatchStats();
+    });
+  }
 
   // ---- Exportar / Importar / Reset ----
   // Exportar/Importar eliminados según solicitud
@@ -4811,6 +4905,11 @@
     loadConfig();
     loadCloudConfig();
     
+    // Verificar sesión almacenada
+    if (isSessionValid()) {
+      isAuthenticated = true;
+    }
+    
     // Limpiar duplicados existentes
     cleanDuplicates();
     
@@ -4834,6 +4933,14 @@
     }
     if (inputStatsTo) {
       inputStatsTo.value = todayISO(); // Fecha de hoy
+    }
+    
+    // Configurar fechas predeterminadas para estadísticas de partidos
+    if (inputMStatsFrom) {
+      inputMStatsFrom.value = '2025-10-01'; // 01/10/2025
+    }
+    if (inputMStatsTo) {
+      inputMStatsTo.value = todayISO(); // Fecha de hoy
     }
     
     // NO llamar a loadState() aquí - los datos vendrán de Firebase

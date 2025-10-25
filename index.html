@@ -192,6 +192,18 @@
       <section id="tab-estadisticas-partidos" class="tab-section">
         <div class="card">
           <h2>Estadísticas de partidos</h2>
+          <form id="form-mstats-filter" class="form-grid compact">
+            <label>
+              <span>Desde</span>
+              <input id="mstats-from" type="date" />
+            </label>
+            <label>
+              <span>Hasta</span>
+              <input id="mstats-to" type="date" />
+            </label>
+            <button type="button" id="mstats-search" class="btn primary">Buscar</button>
+            <button type="button" id="mstats-clear" class="btn">Limpiar</button>
+          </form>
           <div class="table-wrapper">
             <table class="table" id="mstats-table">
               <thead>

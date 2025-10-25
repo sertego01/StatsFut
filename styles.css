@@ -626,6 +626,32 @@ table.table th { color: var(--muted); font-weight: 500; }
   gap: 8px;
 }
 
+/* Scroll para lista de partidos recientes */
+#recent-match-entries {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Estilo del scrollbar para mejor apariencia */
+#recent-match-entries::-webkit-scrollbar {
+  width: 6px;
+}
+
+#recent-match-entries::-webkit-scrollbar-track {
+  background: var(--bg);
+  border-radius: 3px;
+}
+
+#recent-match-entries::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+#recent-match-entries::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
 /* Estilos para el calendario */
 .calendar-item {
   display: flex;
