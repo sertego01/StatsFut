@@ -4097,18 +4097,15 @@
   function renderFinesSummary() {
     if (!finesSummaryList || !finesSummaryEmpty || !finesTotal || !finesTotalAmount) return;
     
-    const currentYear = new Date().getFullYear();
-    const yearFines = fines.filter(f => {
-      const fineYear = new Date(f.date).getFullYear();
-      return fineYear === currentYear && f.paid; // Solo multas pagadas
-    });
+    // Filtrar solo multas pagadas (todas, sin importar el año)
+    const paidFines = fines.filter(f => f.paid === true);
     
-    // Calcular total anual
-    const totalAmount = yearFines.reduce((sum, fine) => sum + fine.amount, 0);
+    // Calcular total
+    const totalAmount = paidFines.reduce((sum, fine) => sum + fine.amount, 0);
     
     // Mostrar/ocultar elementos según si hay multas
-    finesSummaryEmpty.style.display = yearFines.length === 0 ? '' : 'none';
-    finesTotal.style.display = yearFines.length === 0 ? 'none' : '';
+    finesSummaryEmpty.style.display = paidFines.length === 0 ? '' : 'none';
+    finesTotal.style.display = paidFines.length === 0 ? 'none' : '';
     finesSummaryList.innerHTML = '';
     
     if (totalAmount > 0) {
@@ -4117,7 +4114,7 @@
     
     // Agrupar por jugador
     const playerTotals = {};
-    yearFines.forEach(fine => {
+    paidFines.forEach(fine => {
       let playerName = 'Jugador desconocido';
       if (fine.playerId === 'fran') {
         playerName = 'Fran';
